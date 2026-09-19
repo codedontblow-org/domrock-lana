@@ -1,17 +1,10 @@
-from fastapi import FastAPI, Depends
-from app.core.config import Settings, get_settings
+from fastapi import FastAPI
+from app.tools.query_tool.router import router as query_router
 
-app = FastAPI()
+app = FastAPI(title="lana-ai")
+
+app.include_router(query_router)
 
 @app.get("/")
 def read_root():
-    return {"status": "FastAPI is running on Ubuntu"}
-
-app = FastAPI()
-
-@app.get("/info")
-def get_app_info(settings: Settings = Depends(get_settings)):
-    return {
-        "database_url": settings.DATABASE_URL,
-        "app_port": settings.APP_PORT
-    }
+    return {"status": "lana-ai is running"}

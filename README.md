@@ -22,14 +22,29 @@ lana-ai/
 └── README.md
 ```
 
-## ⌨️ Executando
+## Requisitos
+- python3.12
+
+
+## Executando
 Clone o repositório, acesse a raiz e rode os seguinte comandos:
 > Tenha certeza que está usando a versão 3.12 do python para evitar problemas com dependências
-```bash 
+
+```bash
+# cmd
 python -m venv venv
-.\venv\Scripts\activate             #CMD
-source venv/bin/activate            #bash
+.\venv\Scripts\activate 
+
+# bash
+python3.12 -m venv venv  
+source venv/bin/activate 
 
 python -m pip install -r requirements.txt
-uvicorn main:app --reload           #localhost:8000
+
+# localhost:8000
+uvicorn main:app --reload  
+
+# acessar Swagger UI
+http://localhost:8000/docs
+
 ```
