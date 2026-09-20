@@ -16,7 +16,6 @@ def gerar_sql(pergunta: str) -> str | None:
 
     return texto
 
-
 def executar(body: QueryRequestBody) -> QueryResponseBody:
     sql = gerar_sql(body.pergunta)
 

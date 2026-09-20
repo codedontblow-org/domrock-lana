@@ -1,6 +1,6 @@
 from app.agent.state import AgentState, llm
 
-def agentNode(state: AgentState) -> AgentState:
+def agent_node(state: AgentState) -> AgentState:
     """This is the AI Agent node"""
     AgentRes = llm.stream(state["messages"])
 
@@ -13,3 +13,11 @@ def agentNode(state: AgentState) -> AgentState:
             print(chunk.content, end="", flush=True)
 
     return {"messages": [full]}
+
+def keep_loop(state: AgentState):
+    message = state["messages"]
+    last_message = message[-1]
+    if not last_message.tool_calls:
+        return "end"
+    else:
+        return "loop"
