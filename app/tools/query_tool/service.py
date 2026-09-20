@@ -1,15 +1,15 @@
 from app.core.db import executar_select
-from app.core.config import get_gemini_client
+from app.core.config import get_ai_model
 from app.tools.query_tool.guard import validar, SqlInseguro
 from app.tools.query_tool.prompts import FULL_SYSTEM_PROMPT
 from app.tools.query_tool.dtos import QueryRequestBody, QueryResponseBody
 
-client = get_gemini_client()
+model = get_ai_model()
 
 def gerar_sql(pergunta: str) -> str | None:
     prompt = f"{FULL_SYSTEM_PROMPT}\n\nPergunta: {pergunta}"
-    resposta = client.models.generate_content(model="gemini-3.5-flash-lite", contents=prompt)
-    texto = resposta.text.strip()
+    resposta = model.invoke(prompt)
+    texto = resposta.content.strip()
 
     if texto.startswith("SEM_DADO"):
         return None
