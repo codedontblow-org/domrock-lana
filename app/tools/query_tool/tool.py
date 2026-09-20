@@ -1,5 +1,4 @@
 from langchain_core.tools import tool
-
 from app.tools.query_tool.dtos import QueryRequestBody
 from app.tools.query_tool.service import executar
 
