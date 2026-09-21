@@ -23,7 +23,7 @@ lana-ai/
 ```
 
 ## Requisitos
-- python3.12
+- python3.12.10
 
 
 ## Executando

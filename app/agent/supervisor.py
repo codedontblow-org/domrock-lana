@@ -3,9 +3,9 @@ from app.agent.initialize import AgentState, lana_agent
 # Node de invocação do agente
 def agent_node(state: AgentState) -> AgentState:
     """This is the AI Agent node"""
-    AgentRes = lana_agent.invoke(state["messages"])
+    agent_res = lana_agent.invoke(state["messages"])
 
-    return {"messages": [AgentRes]}
+    return {"messages": [agent_res]}
 
 # Node de decisão de uso de ferramentas e loop ReAct
 def keep_loop(state: AgentState):

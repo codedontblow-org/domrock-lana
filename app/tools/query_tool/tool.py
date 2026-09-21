@@ -6,9 +6,18 @@ from app.tools.query_tool.service import executar
 @tool
 def consultar_banco(pergunta: str) -> dict:
     
-    """Essa ferramenta consulta o banco de dados para responder perguntas sobre os registros passados de vendas. 
-    ARGS:
-        pergunta: str. Uma pergunta em linguagem natural e em português. A ferramenta suporta perguntas sobre vendedores, produtos e vendas realizadas. Retornará [SEM_DADO] caso não consiga responder à pergunta com os dados cadastrados.
+    """
+    Consulta informações sobre vendas no banco de dados.
+
+    Use esta ferramenta quando a pergunta exigir informações armazenadas
+    no banco de dados, como vendas, produtos, clientes, quantidades,
+    valores ou agregações desses dados.
+
+    Não use esta ferramenta para perguntas que não dependam dos dados
+    armazenados no banco.
+
+    Args:
+        pergunta: Pergunta em linguagem natural sobre os dados de vendas.
     """
 
     body = QueryRequestBody(pergunta=pergunta)
