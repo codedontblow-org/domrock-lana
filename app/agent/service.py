@@ -1,4 +1,6 @@
 from app.agent.graph import lana
+from app.agent.prompts import SYSTEM_RULES
+from langchain_core.messages import HumanMessage
 
 # Função de coleta de eventos da AI
 def get_events(messages):
@@ -33,7 +35,7 @@ def lana_invoke(thread_id: str, user_input: str):
     }
     
     result = agent_response = lana.invoke(
-        {"messages": [{"role": "user", "content": user_input}]},
+        {"messages": [HumanMessage(user_input)] + SYSTEM_RULES},
         config=config,
     )
 
