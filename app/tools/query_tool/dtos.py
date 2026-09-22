@@ -9,4 +9,5 @@ class QueryResponseBody(BaseModel):
     sql_gerado: str | None = None
     dados: list[dict[str, Any]] | None = None
     erro: str | None = None
+    motivo: str | None = None   
     mensagem: str | None = None

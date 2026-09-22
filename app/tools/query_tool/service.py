@@ -6,23 +6,36 @@ from app.tools.query_tool.dtos import QueryRequestBody, QueryResponseBody
 
 model = get_ai_model()
 
-def gerar_sql(pergunta: str) -> str | None:
+def gerar_sql(pergunta: str) -> tuple[str | None, str | None]:
+    """Retorna (sql, motivo_recusa). Só um dos dois vem preenchido."""
     prompt = f"{FULL_SYSTEM_PROMPT}\n\nPergunta: {pergunta}"
+
+    print("\n===== PROMPT ENVIADO AO MODELO =====")
+    print(prompt)
+    print("====================================\n")
+
     resposta = model.invoke(prompt)
-    texto = resposta.content.strip()
+
+    texto = resposta.content[0]["text"].strip()
+
+    print("\n===== RESPOSTA DO MODELO =====")
+    print(texto)
+    print("==============================\n")
 
     if texto.startswith("SEM_DADO"):
-        return None
+        motivo = texto.replace("SEM_DADO:", "", 1).strip()
+        return None, motivo
 
-    return texto
+    return texto, None
 
 def executar(body: QueryRequestBody) -> QueryResponseBody:
-    sql = gerar_sql(body.pergunta)
+    sql, motivo = gerar_sql(body.pergunta)
 
     # 1. Trata a recusa de schema pela LLM
     if sql is None:
         return QueryResponseBody(
             status="recusado",
+            motivo=motivo,
             mensagem="A informação solicitada não consta no banco de dados.",
         )
 

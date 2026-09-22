@@ -1,19 +1,23 @@
 import sqlglot
 from sqlglot import exp
 
-TABELAS_PERMITIDAS = {"vendedor", "produto", "venda"}
+TABELAS_PERMITIDAS = {
+    "marca", "cargo", "funcionario", "loja",
+    "marca_cargo", "funcionario_loja", "funcionario_cargo", "venda"
+}
 
 
 class SqlInseguro(Exception):
     """Exceção levantada quando uma consulta SQL não passa pela validação."""
     pass
 
+
 def validar(sql: str) -> str:
     """Valida uma consulta SQL e devolve sua versão normalizada."""
 
     # Converte o texto SQL em uma lista de árvores sintáticas, uma por comando.
     try:
-        comandos = [c for c in sqlglot.parse(sql, dialect="sqlite") if c is not None]
+        comandos = [c for c in sqlglot.parse(sql, dialect="postgres") if c is not None]
     except Exception as e:
         raise SqlInseguro(f"SQL não pôde ser interpretado: {e}")
 
@@ -40,5 +44,5 @@ def validar(sql: str) -> str:
     if fora_da_lista:
         raise SqlInseguro(f"Tabela não autorizada: {fora_da_lista}")
 
-    # Gera novamente o SQL a partir da árvore, em formato SQLite normalizado.
-    return arvore_sql.sql(dialect="sqlite")
+    # Gera novamente o SQL a partir da árvore, em formato PostgreSQL normalizado.
+    return arvore_sql.sql(dialect="postgres")

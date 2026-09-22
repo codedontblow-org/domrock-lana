@@ -14,9 +14,8 @@ class Settings(BaseSettings):
     AI_PROVIDER: str
     AI_MODEL: str
     PORT: int = 8000
-    DATABASE_SQLITE_URL: str = "vendas.db"
-    # BACKEND_URL: str = "http://localhost:8080"
-    # DATABASE_URL: str = ""
+    DATABASE_URL: str = ""
+    # BACKEND_URL: str = ""
 
     model_config = SettingsConfigDict(
         
@@ -37,13 +36,15 @@ def get_ai_model() -> BaseChatModel:
     if provider == 'GEMINI':
         return ChatGoogleGenerativeAI(
             model=model,
-            api_key=ENV.GEMINI_API_KEY
+            api_key=ENV.GEMINI_API_KEY,
+            temperature=0,
         )
 
     if provider == 'OPENROUTER':
         return ChatOpenRouter(
             model=model,
-            api_key=ENV.OPENROUTER_API_KEY
+            api_key=ENV.OPENROUTER_API_KEY,
+            temperature=0,
         )
 
     raise ValueError(
