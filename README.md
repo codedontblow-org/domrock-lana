@@ -23,11 +23,12 @@ lana-ai/
 ```
 
 ## Requisitos
-- python3.12
+- python3.12.10
 
 
 ## Executando
 Clone o repositório, acesse a raiz e rode os seguinte comandos:
+> Tenha certeza que está usando a versão 3.12 do python para evitar problemas com dependências
 
 ```bash
 # cmd

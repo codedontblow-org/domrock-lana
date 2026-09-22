@@ -8,7 +8,6 @@ class SqlInseguro(Exception):
     """Exceção levantada quando uma consulta SQL não passa pela validação."""
     pass
 
-
 def validar(sql: str) -> str:
     """Valida uma consulta SQL e devolve sua versão normalizada."""
 
