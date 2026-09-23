@@ -4,7 +4,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from langchain_core.language_models import BaseChatModel
 from langchain_openrouter import ChatOpenRouter
 from langchain_google_genai import ChatGoogleGenerativeAI
-from google import genai
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -50,3 +49,15 @@ def get_ai_model() -> BaseChatModel:
     raise ValueError(
         f"Provedor de IA não suportado: {provider}"
     )
+
+def extract_text(response) -> str:
+    content = response.content
+
+    if isinstance(content, str):
+        return content.strip()
+
+    return "".join(
+        block["text"]
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
+    ).strip()

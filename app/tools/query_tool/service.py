@@ -1,5 +1,5 @@
 from app.core.db import executar_select
-from app.core.config import get_ai_model
+from app.core.config import get_ai_model, extract_text
 from app.tools.query_tool.guard import validar, SqlInseguro
 from app.tools.query_tool.prompts import FULL_SYSTEM_PROMPT
 from app.tools.query_tool.dtos import QueryRequestBody, QueryResponseBody
@@ -9,18 +9,8 @@ model = get_ai_model()
 def gerar_sql(pergunta: str) -> tuple[str | None, str | None]:
     """Retorna (sql, motivo_recusa). Só um dos dois vem preenchido."""
     prompt = f"{FULL_SYSTEM_PROMPT}\n\nPergunta: {pergunta}"
-
-    print("\n===== PROMPT ENVIADO AO MODELO =====")
-    print(prompt)
-    print("====================================\n")
-
     resposta = model.invoke(prompt)
-
-    texto = resposta.content[0]["text"].strip()
-
-    print("\n===== RESPOSTA DO MODELO =====")
-    print(texto)
-    print("==============================\n")
+    texto = extract_text(resposta)
 
     if texto.startswith("SEM_DADO"):
         motivo = texto.replace("SEM_DADO:", "", 1).strip()
