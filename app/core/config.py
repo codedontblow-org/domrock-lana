@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     AI_MODEL: str
     PORT: int = 8000
     DATABASE_URL: str = ""
+    # "llm" gera o código da regra com a IA (A6-37); "modelo" usa o código fixo (plano B da demo).
+    CODEGEN_MODO: str = "llm"
     # BACKEND_URL: str = ""
 
     model_config = SettingsConfigDict(

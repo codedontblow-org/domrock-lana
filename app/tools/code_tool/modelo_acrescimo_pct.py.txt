@@ -1,0 +1,38 @@
+import pandas as pd
+
+# Gerado pelo modelo fixo (plano B, sem LLM): acréscimo de % em janela de datas.
+DATA_INICIO = pd.Timestamp("{data_inicio}")
+DATA_FIM = pd.Timestamp("{data_fim}")
+PCT_ACRESCIMO = {pct_acrescimo}
+MARCAS_ALVO = {marcas_alvo}
+CARGOS_ALVO = {cargos_alvo}
+CARGO_GERENTE = "150"
+ELEMENTO = "pct_acrescimo"
+
+
+def _vendas_na_janela(vendas):
+    dentro = (vendas["data_venda"] >= DATA_INICIO) & (vendas["data_venda"] <= DATA_FIM)
+    return vendas[dentro]
+
+
+def _base_na_janela(apuracao, vendas):
+    por_matricula = vendas.groupby(["matricula", "competencia"], as_index=False)["vlr_venda"].sum()
+    por_loja = vendas.groupby(["cod_loja", "competencia"], as_index=False)["vlr_venda"].sum()
+    base = apuracao.merge(por_matricula, on=["matricula", "competencia"], how="left")
+    base = base.merge(por_loja, on=["cod_loja", "competencia"], how="left", suffixes=("", "_loja"))
+    base = base.fillna({{"vlr_venda": 0.0, "vlr_venda_loja": 0.0}})
+    eh_gerente = base["cod_cargo"] == CARGO_GERENTE
+    return base["vlr_venda_loja"].where(eh_gerente, base["vlr_venda"])
+
+
+def aplicar_regra(bases, apuracao_base, competencias):
+    simulada = apuracao_base.copy()
+    elegivel = simulada["cod_marca"].isin(MARCAS_ALVO) & simulada["cod_cargo"].isin(CARGOS_ALVO)
+    base_janela = _base_na_janela(simulada, _vendas_na_janela(bases["vendas"]))
+    delta = (base_janela * PCT_ACRESCIMO / 100).round(2).where(elegivel, 0.0)
+    simulada["comissao"] = (simulada["comissao"] + delta).round(2)
+    contribuicoes = simulada[["matricula", "competencia", "cod_marca", "cod_cargo"]].copy()
+    contribuicoes["elemento_ref"] = ELEMENTO
+    contribuicoes["delta"] = delta
+    contribuicoes = contribuicoes[contribuicoes["delta"] != 0.0]
+    return {{"apuracao_simulada": simulada, "contribuicoes": contribuicoes}}
