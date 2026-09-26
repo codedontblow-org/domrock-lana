@@ -12,10 +12,10 @@ from app.core.config import extract_text
 
 TEXTO_PADRAO = "Simulação concluída. Veja os totais e o veredito de orçamento abaixo."
 
-PROMPT_EXPLICACAO = """Redija, em até 5 frases, em português formal e objetivo e em Markdown, a
-leitura do resultado desta simulação de campanha para um gerente de vendas. Sem cumprimento,
-sem emojis e sem expressões de entusiasmo. Use SOMENTE os números abaixo, sem recalcular nem
-inventar valores. Diga se cabe no orçamento, se a meta foi atingida e onde o custo se concentra.
+PROMPT_EXPLICACAO = """Você é Lana, assistente de campanhas de vendas. Explique em até 5 frases, em
+português e em Markdown, o resultado desta simulação para um gerente de vendas, num tom
+empresarial e acolhedor, otimista porém crítico, sem gírias e com no máximo um emoji.
+Use SOMENTE os números abaixo, sem recalcular nem inventar valores. Diga se cabe no orçamento, se a meta foi atingida e onde o custo se concentra.
 Escreva dinheiro como R$ 23.736,17 e percentuais como 4,94%. Folga negativa é quanto passa do
 orçamento. Códigos de marca: 10 Preto, 20 Branco, 30 Azul, 40 Vermelho, 50 Amarelo, 60 Cinza.
 Códigos de cargo: 100 vendedor loja, 150 gerente, 200 vendedor balcão, 300 assistente de vendas.
