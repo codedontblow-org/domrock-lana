@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter
 from app.agent.service import lana_invoke
 from pydantic import BaseModel
@@ -17,6 +19,8 @@ class AgentResponse(BaseModel):
     chat_id: str
     response: str
     events: list[AgentEvents] = []
+    # Regra registrada neste turno (contrato de estrutura_parametros_regra), para o painel de revisão.
+    regra: dict[str, Any] | None = None
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
