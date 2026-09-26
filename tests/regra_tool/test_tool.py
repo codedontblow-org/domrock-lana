@@ -38,3 +38,14 @@ def test_extrair_regra_pega_o_ultimo_artifact_do_turno() -> None:
     assert regra is not None
     assert next(p for p in regra["parametros"] if p["key"] == "pct_acrescimo")["value"] == 2.0
     assert extrair_regra([AIMessage("sem tool")]) is None
+
+
+def test_contexto_do_painel_leva_os_valores_editados_ao_agente() -> None:
+    from app.agent.service import contexto_do_painel
+
+    regra = {"parametros": [{"key": "pct_acrescimo", "value": 2.0}, {"key": "marcas_alvo", "value": ["30"]}]}
+
+    contexto = contexto_do_painel(regra)
+
+    assert '"pct_acrescimo": 2.0' in contexto and '"marcas_alvo": ["30"]' in contexto
+    assert contexto_do_painel(None) == ""

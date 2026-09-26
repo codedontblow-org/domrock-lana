@@ -1,3 +1,5 @@
+import json
+import threading
 from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
@@ -39,16 +41,46 @@ def extrair_regra(messages: list[BaseMessage]) -> dict[str, Any] | None:
     return None
 
 
-def _mensagens_de_entrada(config: dict[str, Any], user_input: str) -> list[BaseMessage]:
+def contexto_do_painel(regra: dict[str, Any] | None) -> str:
+    """Valores atuais do painel, que o usuário pode ter editado sem o agente saber.
+
+    Ex.: contexto_do_painel({"parametros": [{"key": "pct_acrescimo", "value": 2.0}]})
+    """
+    if not regra:
+        return ""
+    valores = {p["key"]: p.get("value") for p in regra.get("parametros", [])}
+    return (
+        "[Parâmetros atuais no painel, já revisados pelo usuário. Parta deles ao registrar a "
+        f"regra e mude só o que ele pedir: {json.dumps(valores, ensure_ascii=False)}]\n\n"
+    )
+
+
+def _mensagens_de_entrada(config: dict[str, Any], user_input: str, regra: dict[str, Any] | None) -> list[BaseMessage]:
+    mensagem = HumanMessage(contexto_do_painel(regra) + user_input)
     # As regras de sistema entram só no início do thread; antes eram somadas a cada turno.
     historico = lana.get_state(config).values.get("messages", [])
     if historico:
-        return [HumanMessage(user_input)]
-    return [*SYSTEM_RULES, HumanMessage(user_input)]
+        return [mensagem]
+    return [*SYSTEM_RULES, mensagem]
+
+
+_travas_por_chat: dict[str, threading.Lock] = {}
+_trava_do_registro = threading.Lock()
+
+
+def _trava_do_chat(thread_id: str) -> threading.Lock:
+    # Dois turnos simultâneos no mesmo thread partiriam do mesmo checkpoint e embaralhariam o histórico.
+    with _trava_do_registro:
+        return _travas_por_chat.setdefault(thread_id, threading.Lock())
 
 
 # Função para invocar o grafo via requisição HTTP
-def lana_invoke(thread_id: str, user_input: str):
+def lana_invoke(thread_id: str, user_input: str, regra: dict[str, Any] | None = None):
+    with _trava_do_chat(thread_id):
+        return _invocar_turno(thread_id, user_input, regra)
+
+
+def _invocar_turno(thread_id: str, user_input: str, regra: dict[str, Any] | None) -> dict[str, Any]:
     config = {
         "configurable": {
             "thread_id": thread_id
@@ -57,7 +89,7 @@ def lana_invoke(thread_id: str, user_input: str):
     tamanho_anterior = len(lana.get_state(config).values.get("messages", []))
 
     result = lana.invoke(
-        {"messages": _mensagens_de_entrada(config, user_input)},
+        {"messages": _mensagens_de_entrada(config, user_input, regra)},
         config=config,
     )
 

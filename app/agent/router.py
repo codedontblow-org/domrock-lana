@@ -13,6 +13,8 @@ class AgentEvents(BaseModel):
 class AgentRequest(BaseModel):
     chat_id: str
     message: str
+    # Regra como está no painel (com as edições do usuário), para o agente partir dela.
+    regra: dict[str, Any] | None = None
 
 
 class AgentResponse(BaseModel):
@@ -26,4 +28,4 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 @router.post("/invoke", response_model=AgentResponse)
 def invoke(body: AgentRequest):
-    return lana_invoke(body.chat_id, body.message)
+    return lana_invoke(body.chat_id, body.message, body.regra)
