@@ -42,7 +42,9 @@ Convenções dos dados (errar isto gera número errado sem erro):
   inclusive nas duas pontas, e nunca pela competencia.
 - Regra base já aplicada no baseline: cada cargo recebe pct sobre a própria venda do mês;
   o GERENTE (cod_cargo "150") recebe pct sobre a venda TOTAL da loja no mês. Um acréscimo
-  para gerentes, portanto, incide sobre a venda da loja no período da regra.
+  para gerentes, portanto, incide sobre a venda da loja no período da regra: some TODAS as
+  vendas da loja (de todos os cargos) na janela; NUNCA filtre as vendas por cod_cargo antes
+  dessa soma. Os cargos-alvo filtram quem RECEBE, não quais vendas contam para o gerente.
 - Não recalcule o baseline. Parta de apuracao_base e some o efeito da regra.
 - Arredonde cada delta com round(…, 2). Comissão nunca pode ficar negativa.
 """

@@ -52,3 +52,5 @@ class ResultadoSimulacao(BaseModel):
     origem_codigo: str
     tentativas: int
     explicacao: str
+    # Como o número foi validado (conferido com o cálculo determinístico, ou substituído por ele).
+    observacao: str = ""

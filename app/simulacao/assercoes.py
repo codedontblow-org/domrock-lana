@@ -96,3 +96,28 @@ def _conferir_escopo(comparacao: pd.DataFrame, parametros: ParametrosSimulacao) 
             f"cargos {parametros.cargos_alvo} ou período; ex.: {amostra.to_dict('records')}"
         )
 
+
+DICA_GERENTE = (
+    "Lembre: o gerente (cod_cargo 150) recebe sobre a venda TOTAL da loja no período; "
+    "não filtre as vendas por cod_cargo antes de somar por loja."
+)
+
+
+def conferir_contra_referencia(comparacao: pd.DataFrame, referencia: pd.DataFrame) -> None:
+    """Compara a diferença por matrícula com o cálculo determinístico do mesmo contrato.
+
+    Pega o código que passa nas outras asserções mas calcula errado (ex.: gerente sobre a
+    própria venda em vez da venda da loja).
+    """
+    juntos = comparacao.merge(
+        referencia[CHAVE_APURACAO + ["diferenca"]], on=CHAVE_APURACAO, suffixes=("", "_esperada")
+    )
+    divergentes = juntos[(juntos["diferenca"] - juntos["diferenca_esperada"]).abs() > TOLERANCIA_CENTAVO]
+    if divergentes.empty:
+        return
+    amostra = divergentes[["matricula", "cod_cargo", "competencia", "diferenca", "diferenca_esperada"]].head(3)
+    raise AssercaoViolada(
+        f"Resultado diverge do cálculo de conferência em {len(divergentes)} linhas, "
+        f"ex.: {amostra.to_dict('records')}. {DICA_GERENTE}"
+    )
+

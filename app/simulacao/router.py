@@ -20,11 +20,14 @@ router = APIRouter(prefix="/simulacao", tags=["simulacao"])
 @lru_cache
 def get_simulador() -> SimuladorCampanha:
     modelo = get_ai_model()
+    modo = get_settings().CODEGEN_MODO
     return SimuladorCampanha(
         fonte_bases=PostgresFonteBases(get_connection),
-        gerador=_escolher_gerador(get_settings().CODEGEN_MODO),
+        gerador=_escolher_gerador(modo),
         runner=SubprocessRunner(),
         explicador=ExplicadorLlm(modelo),
+        # Confere o código da IA contra o cálculo determinístico do mesmo contrato.
+        referencia=GeradorCodigoModelo() if modo == "llm" else None,
     )
 
 

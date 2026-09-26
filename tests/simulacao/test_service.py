@@ -1,6 +1,7 @@
 import pytest
 
 from app.simulacao.service import SimulacaoFalhouError, SimuladorCampanha
+from app.tools.code_tool.gerador import GeradorCodigoModelo
 from app.tools.code_tool.runner import SubprocessRunner
 from app.tools.regra_tool.parametros import RegraInvalidaError, montar_regra
 from tests.fakes import (
@@ -86,3 +87,48 @@ def test_simular_trata_comissao_em_texto_como_tentativa_falha() -> None:
         _simulador(FakeGeradorSequencial([comissao_texto])).simular(montar_regra(VALORES, "bf", "d"))
 
     assert erro.value.etapa == "geracao_codigo"
+
+
+# Gerente sobre a própria venda em vez da venda da loja: passa nas asserções de escopo,
+# mas diverge do cálculo determinístico (caso real visto na LLM em 2026-09-26).
+GERENTE_SOBRE_PROPRIA_VENDA = """import pandas as pd
+
+def aplicar_regra(bases, apuracao_base, competencias):
+    simulada = apuracao_base.copy()
+    vendas = bases["vendas"]
+    janela = vendas[(vendas["data_venda"] >= pd.Timestamp("2025-11-24")) & (vendas["cod_cargo"] == "150")]
+    propria = janela.groupby("matricula")["vlr_venda"].sum()
+    delta = simulada["matricula"].map(propria).fillna(0.0).mul(0.01).round(2)
+    simulada["comissao"] = (simulada["comissao"] + delta).round(2)
+    contrib = simulada[["matricula", "competencia"]].copy()
+    contrib["elemento_ref"] = "pct_acrescimo"
+    contrib["delta"] = delta
+    return {"apuracao_simulada": simulada, "contribuicoes": contrib[contrib["delta"] != 0]}
+"""
+VALORES_GERENTE = {**VALORES, "cargos_alvo": ["150"]}
+
+
+def _simulador_conferido(gerador: FakeGeradorSequencial) -> SimuladorCampanha:
+    return SimuladorCampanha(
+        FakeFonteBases(bases_pequenas()), gerador, SubprocessRunner(), FakeExplicador(),
+        referencia=GeradorCodigoModelo(),
+    )
+
+
+def test_simular_conferido_aceita_codigo_da_ia_que_bate_com_a_referencia() -> None:
+    fonte = fonte_modelo(parametros_black_friday(cargos_alvo=["150"]))
+
+    resultado = _simulador_conferido(FakeGeradorSequencial([fonte])).simular(montar_regra(VALORES_GERENTE, "g", "d"))
+
+    assert resultado.totais.diferenca == 5.0  # G1: 500 da loja 1 na janela * 1%
+    assert resultado.origem_codigo == "fake" and "conferido" in resultado.observacao
+
+
+def test_simular_conferido_devolve_a_divergencia_para_a_ia_e_usa_a_referencia_no_fim() -> None:
+    gerador = FakeGeradorSequencial([GERENTE_SOBRE_PROPRIA_VENDA])
+
+    resultado = _simulador_conferido(gerador).simular(montar_regra(VALORES_GERENTE, "g", "d"))
+
+    assert "venda TOTAL da loja" in (gerador.erros_recebidos[1] or "")
+    assert resultado.totais.diferenca == 5.0
+    assert resultado.origem_codigo == "modelo" and "divergiu" in resultado.observacao

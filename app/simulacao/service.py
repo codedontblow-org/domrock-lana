@@ -1,11 +1,11 @@
 """Orquestra a simulação: valida a regra, apura o baseline, gera e executa o código da regra,
 confere o resultado e resume. A LLM só entra na geração do código e na redação final.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pandas as pd
 
-from app.simulacao.assercoes import conferir_resultado
+from app.simulacao.assercoes import conferir_contra_referencia, conferir_resultado
 from app.simulacao.bases import BasesSimulacao, FonteBases, competencias_do_periodo
 from app.simulacao.baseline import calcular_baseline
 from app.simulacao.dtos import ResultadoSimulacao
@@ -37,17 +37,29 @@ class TentativaAprovada:
     codigo: CodigoGerado
     comparacao: pd.DataFrame
     numero: int
+    observacao: str = ""
+
+
+CONFERIDO = "Resultado da IA conferido com o cálculo determinístico."
+USOU_REFERENCIA = (
+    "O código da IA divergiu do cálculo determinístico em todas as tentativas; "
+    "o resultado mostrado é o do cálculo determinístico."
+)
 
 
 class SimuladorCampanha:
-    """Ex.: SimuladorCampanha(fonte, gerador, SubprocessRunner(), explicador).simular(regra)"""
+    """Ex.: SimuladorCampanha(fonte, gerador, SubprocessRunner(), explicador, referencia).simular(regra)
+
+    `referencia` gera o código determinístico do mesmo contrato; quando existe, todo resultado
+    da IA é conferido contra ele. O contrato da Sprint 1 tem forma fixa, então sempre há referência.
+    """
 
     def __init__(
         self, fonte_bases: FonteBases, gerador: GeradorCodigo, runner: CodeRunner,
-        explicador: Explicador, max_tentativas: int = 2,
+        explicador: Explicador, referencia: GeradorCodigo | None = None, max_tentativas: int = 2,
     ) -> None:
         self._fonte_bases, self._gerador, self._runner = fonte_bases, gerador, runner
-        self._explicador, self._max_tentativas = explicador, max_tentativas
+        self._explicador, self._referencia, self._max_tentativas = explicador, referencia, max_tentativas
 
     def simular(self, regra: RegraCampanha) -> ResultadoSimulacao:
         parametros = ler_parametros(regra)
@@ -55,7 +67,8 @@ class SimuladorCampanha:
         bases = self._carregar(competencias)
         baseline = calcular_baseline(bases)
         contexto = ContextoGeracao(parametros, competencias, _amostras(bases, baseline))
-        aprovada = self._gerar_e_executar(contexto, bases, baseline)
+        conferencia = self._executar_referencia(contexto, bases, baseline)
+        aprovada = self._gerar_e_executar(contexto, bases, baseline, conferencia)
         return self._resumir(regra.rule_id, parametros, competencias, bases, aprovada)
 
     def _carregar(self, competencias: list[str]) -> BasesSimulacao:
@@ -65,8 +78,17 @@ class SimuladorCampanha:
             raise SimulacaoFalhouError("dados", f"Sem base de RH para {sem_dados}; importe essas competências")
         return bases
 
+    def _executar_referencia(
+        self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame,
+    ) -> TentativaAprovada | None:
+        if self._referencia is None:
+            return None
+        codigo = self._referencia.gerar(contexto, None)
+        return TentativaAprovada(codigo, self._executar(codigo, contexto, bases, baseline), 0)
+
     def _gerar_e_executar(
         self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame,
+        conferencia: TentativaAprovada | None,
     ) -> TentativaAprovada:
         erro: str | None = None
         codigo: CodigoGerado | None = None
@@ -74,11 +96,16 @@ class SimuladorCampanha:
             try:
                 codigo = self._gerador.gerar(contexto, erro)
                 comparacao = self._executar(codigo, contexto, bases, baseline)
-                return TentativaAprovada(codigo, comparacao, numero)
+                if conferencia is None:
+                    return TentativaAprovada(codigo, comparacao, numero)
+                conferir_contra_referencia(comparacao, conferencia.comparacao)
+                return TentativaAprovada(codigo, comparacao, numero, CONFERIDO)
             # Qualquer falha da tentativa (LLM fora/429, código inválido, retorno com tipo errado)
             # vira nova tentativa e, no fim, um 422 com a causa, nunca um 500 genérico.
             except Exception as falha:
                 erro = f"{type(falha).__name__}: {falha}"
+        if conferencia is not None:
+            return replace(conferencia, numero=self._max_tentativas, observacao=f"{USOU_REFERENCIA} Último erro: {erro}")
         raise SimulacaoFalhouError("geracao_codigo", erro or "sem detalhe", codigo.fonte if codigo else None)
 
     def _executar(
@@ -101,7 +128,7 @@ class SimuladorCampanha:
             orcamento=avaliar_orcamento(totais, parametros.orcamento_limite),
             meta=avaliar_meta(bases.vendas, parametros),
             codigo=aprovada.codigo.fonte, origem_codigo=aprovada.codigo.origem,
-            tentativas=aprovada.numero, explicacao="",
+            tentativas=aprovada.numero, explicacao="", observacao=aprovada.observacao,
         )
         resumo = resultado.model_dump(include={"totais", "por_marca", "por_cargo", "orcamento", "meta"})
         return resultado.model_copy(update={"explicacao": self._explicador.explicar(resumo)})
