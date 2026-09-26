@@ -4,7 +4,7 @@ from app.simulacao.service import SimulacaoFalhouError, SimuladorCampanha
 from app.tools.code_tool.runner import SubprocessRunner
 from app.tools.regra_tool.parametros import RegraInvalidaError, montar_regra
 from tests.fakes import (
-    FakeExplicador, FakeFonteBases, FakeGeradorSequencial, bases_pequenas, fonte_modelo,
+    FakeExplicador, FakeFonteBases, FakeGeradorLlmIndisponivel, FakeGeradorSequencial, bases_pequenas, fonte_modelo,
     parametros_black_friday,
 )
 
@@ -16,7 +16,7 @@ VALORES = {
 CODIGO_QUEBRADO = "def aplicar_regra(bases, apuracao_base, competencias):\n    raise ValueError('bug')\n"
 
 
-def _simulador(gerador: FakeGeradorSequencial) -> SimuladorCampanha:
+def _simulador(gerador: FakeGeradorSequencial | FakeGeradorLlmIndisponivel) -> SimuladorCampanha:
     return SimuladorCampanha(FakeFonteBases(bases_pequenas()), gerador, SubprocessRunner(), FakeExplicador())
 
 
@@ -67,3 +67,22 @@ def test_simular_recusa_competencia_sem_dados() -> None:
         _simulador(FakeGeradorSequencial([CODIGO_QUEBRADO])).simular(
             montar_regra({**VALORES, "periodo": periodo_sem_dados}, "dez", "d")
         )
+
+
+def test_simular_tenta_de_novo_quando_a_llm_falha() -> None:
+    gerador = FakeGeradorLlmIndisponivel(fonte_modelo(parametros_black_friday()))
+
+    resultado = _simulador(gerador).simular(montar_regra(VALORES, "bf", "draft-1"))
+
+    assert resultado.tentativas == 2
+
+
+def test_simular_trata_comissao_em_texto_como_tentativa_falha() -> None:
+    comissao_texto = fonte_modelo(parametros_black_friday()).replace(
+        '    return {"apuracao_simulada"', '    simulada["comissao"] = simulada["comissao"].astype(str)\n    return {"apuracao_simulada"'
+    )
+
+    with pytest.raises(SimulacaoFalhouError) as erro:
+        _simulador(FakeGeradorSequencial([comissao_texto])).simular(montar_regra(VALORES, "bf", "d"))
+
+    assert erro.value.etapa == "geracao_codigo"

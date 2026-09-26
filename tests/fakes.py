@@ -70,6 +70,20 @@ class FakeGeradorSequencial:
         return CodigoGerado(fonte=self._fontes[indice], origem="fake")
 
 
+class FakeGeradorLlmIndisponivel:
+    """Simula a LLM fora do ar (ex.: 429 do Gemini) na primeira tentativa."""
+
+    def __init__(self, fonte_depois: str) -> None:
+        self._fonte_depois = fonte_depois
+        self.chamadas = 0
+
+    def gerar(self, contexto: ContextoGeracao, erro_anterior: str | None) -> CodigoGerado:
+        self.chamadas += 1
+        if self.chamadas == 1:
+            raise ConnectionError("429 RESOURCE_EXHAUSTED")
+        return CodigoGerado(fonte=self._fonte_depois, origem="fake")
+
+
 class FakeExplicador:
     def __init__(self) -> None:
         self.resumos: list[dict[str, object]] = []

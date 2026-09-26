@@ -5,13 +5,12 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from app.simulacao.assercoes import AssercaoViolada, conferir_resultado
+from app.simulacao.assercoes import conferir_resultado
 from app.simulacao.bases import BasesSimulacao, FonteBases, competencias_do_periodo
 from app.simulacao.baseline import calcular_baseline
 from app.simulacao.dtos import ResultadoSimulacao
 from app.simulacao.explicacao import Explicador
 from app.simulacao.resumo import avaliar_meta, avaliar_orcamento, calcular_totais, quebrar_por
-from app.tools.code_tool.codigo import CodigoInvalidoError
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
 from app.tools.code_tool.gerador import GeradorCodigo
 from app.tools.code_tool.runner import CodeRunner
@@ -76,8 +75,10 @@ class SimuladorCampanha:
                 codigo = self._gerador.gerar(contexto, erro)
                 comparacao = self._executar(codigo, contexto, bases, baseline)
                 return TentativaAprovada(codigo, comparacao, numero)
-            except (CodigoInvalidoError, AssercaoViolada, ExecucaoFalhouError) as falha:
-                erro = str(falha)
+            # Qualquer falha da tentativa (LLM fora/429, código inválido, retorno com tipo errado)
+            # vira nova tentativa e, no fim, um 422 com a causa, nunca um 500 genérico.
+            except Exception as falha:
+                erro = f"{type(falha).__name__}: {falha}"
         raise SimulacaoFalhouError("geracao_codigo", erro or "sem detalhe", codigo.fonte if codigo else None)
 
     def _executar(
