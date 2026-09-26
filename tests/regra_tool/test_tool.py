@@ -18,11 +18,12 @@ def test_tool_devolve_faltantes_para_a_llm_e_contrato_como_artifact() -> None:
     assert mensagem.artifact["status"] == "DRAFT_PENDING_REVIEW"
 
 
-def test_tool_so_monta_periodo_com_as_duas_datas() -> None:
-    mensagem = _chamar({"comando_original": "x", "data_inicio": "2025-11-24"})
+def test_tool_guarda_a_data_ja_informada_e_pede_a_outra() -> None:
+    mensagem = _chamar({"comando_original": "a partir de 24/11", "data_inicio": "2025-11-24"})
 
     periodo = next(p for p in mensagem.artifact["parametros"] if p["key"] == "periodo")
-    assert periodo["value"] is None
+    assert periodo["value"] == {"data_inicio": "2025-11-24", "data_fim": None}
+    assert "periodo" in mensagem.artifact["faltantes"]
 
 
 def test_extrair_regra_pega_o_ultimo_artifact_do_turno() -> None:

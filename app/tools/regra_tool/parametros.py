@@ -31,7 +31,7 @@ def montar_regra(valores: dict[str, Any], raw_prompt: str, rule_id: str) -> Regr
     -> ["periodo", "marcas_alvo", "cargos_alvo", "meta_vendas", "orcamento_limite"]
     """
     parametros = [_montar_parametro(key, valores.get(key)) for key in METADADOS]
-    faltantes = [p.key for p in parametros if _vazio(p.value)]
+    faltantes = [p.key for p in parametros if _incompleto(p.value)]
     return RegraCampanha(
         rule_id=rule_id, raw_prompt=raw_prompt, parametros=parametros, faltantes=faltantes
     )
@@ -53,6 +53,13 @@ def _vazio(value: Any) -> bool:
     return value is None or value == [] or value == {} or value == ""
 
 
+def _incompleto(value: Any) -> bool:
+    """Vazio, ou período com só uma das datas."""
+    if isinstance(value, dict):
+        return _vazio(value) or any(_vazio(parte) for parte in value.values())
+    return _vazio(value)
+
+
 def ler_parametros(regra: RegraCampanha) -> ParametrosSimulacao:
     """Converte o contrato em parâmetros tipados ou levanta `RegraInvalidaError`.
 
@@ -72,7 +79,7 @@ def ler_parametros(regra: RegraCampanha) -> ParametrosSimulacao:
     for key, leitor in leitores.items():
         try:
             lidos[key] = leitor(key, valores.get(key))
-        except ValueError as erro:
+        except (ValueError, TypeError) as erro:
             erros.append(str(erro))
     if erros:
         raise RegraInvalidaError(erros)
@@ -127,7 +134,13 @@ def _ler_valor_monetario(key: str, value: Any) -> float:
 
 
 def _ler_codigos(key: str, value: Any, permitidos: frozenset[str]) -> list[str]:
-    codigos = [str(c) for c in _exigir(key, value)]
+    valor = _exigir(key, value)
+    # A LLM ou o front às vezes mandam um código solto ("30" ou 30) em vez de lista.
+    if isinstance(valor, (str, int)):
+        valor = [valor]
+    if not isinstance(valor, list):
+        raise ValueError(f"{key}: esperado lista de códigos, recebido {value!r}")
+    codigos = [str(c) for c in valor]
     invalidos = sorted(set(codigos) - permitidos)
     if invalidos:
         raise ValueError(f"{key}: códigos {invalidos} fora de {sorted(permitidos)}")

@@ -55,7 +55,8 @@ def registrar_parametros_regra(
     return json.dumps({"faltantes": regra.faltantes, "regra": contrato}, ensure_ascii=False), contrato
 
 
-def _periodo(data_inicio: str | None, data_fim: str | None) -> dict[str, str] | None:
-    if data_inicio is None or data_fim is None:
+def _periodo(data_inicio: str | None, data_fim: str | None) -> dict[str, str | None] | None:
+    # Guarda a ponta que o usuário já disse ("a partir de 24/11"); a outra fica pendente.
+    if data_inicio is None and data_fim is None:
         return None
     return {"data_inicio": data_inicio, "data_fim": data_fim}

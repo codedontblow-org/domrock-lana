@@ -46,6 +46,8 @@ def test_ler_parametros_expande_todas_as_marcas() -> None:
         ("pct_acrescimo", "abc", "esperado número"),
         ("marcas_alvo", ["99"], "['99']"),
         ("orcamento_limite", None, "obrigatório"),
+        ("periodo", {"data_inicio": "2025-11-24", "data_fim": None}, "YYYY-MM-DD"),
+        ("cargos_alvo", {"id": "100"}, "esperado lista"),
     ],
 )
 def test_ler_parametros_rejeita_valor_invalido_com_o_valor_na_mensagem(
@@ -58,3 +60,19 @@ def test_ler_parametros_rejeita_valor_invalido_com_o_valor_na_mensagem(
 
     assert trecho_erro in str(erro.value)
     assert erro.value.erros[0].startswith(key)
+
+
+@pytest.mark.parametrize("valor", ["30", 30])
+def test_ler_parametros_aceita_codigo_solto_como_lista(valor: object) -> None:
+    regra = montar_regra({**VALORES_BLACK_FRIDAY, "marcas_alvo": valor}, "cmd", "draft-1")
+
+    assert ler_parametros(regra).marcas_alvo == ["30"]
+
+
+def test_montar_regra_mantem_data_parcial_e_marca_periodo_como_faltante() -> None:
+    periodo = {"data_inicio": "2025-11-24", "data_fim": None}
+
+    regra = montar_regra({**VALORES_BLACK_FRIDAY, "periodo": periodo}, "cmd", "draft-1")
+
+    assert regra.faltantes == ["periodo"]
+    assert regra.parametros[0].value == periodo
