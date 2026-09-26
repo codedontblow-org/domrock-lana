@@ -6,7 +6,7 @@ Se a LLM falhar, a simulação continua com um texto padrão; o número nunca de
 import json
 from typing import Protocol
 
-from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 
 from app.core.config import extract_text
 
@@ -31,7 +31,7 @@ class Explicador(Protocol):
 class ExplicadorLlm:
     """Ex.: ExplicadorLlm(get_ai_model()).explicar({"totais": {...}})"""
 
-    def __init__(self, modelo: BaseChatModel) -> None:
+    def __init__(self, modelo: Runnable) -> None:
         self._modelo = modelo
 
     def explicar(self, resumo: dict[str, object]) -> str:

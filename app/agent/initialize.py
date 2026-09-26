@@ -14,4 +14,4 @@ class AgentState(TypedDict):
 lana_tools = [consultar_banco, registrar_parametros_regra]
 
 # Exportando o modelo com Tools
-lana_agent = get_ai_model().bind_tools(lana_tools)
+lana_agent = get_ai_model(ferramentas=lana_tools)

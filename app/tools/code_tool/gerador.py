@@ -6,7 +6,7 @@ preenche um modelo fixo com os parâmetros, sem LLM, e passa pela mesma validaç
 from pathlib import Path
 from typing import Protocol
 
-from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import Runnable
 
 from app.core.config import extract_text
 from app.tools.code_tool.codigo import extrair_codigo, validar_codigo
@@ -23,7 +23,7 @@ class GeradorCodigo(Protocol):
 class GeradorCodigoLlm:
     """Ex.: GeradorCodigoLlm(get_ai_model()).gerar(contexto, erro_anterior=None).fonte"""
 
-    def __init__(self, modelo: BaseChatModel) -> None:
+    def __init__(self, modelo: Runnable) -> None:
         self._modelo = modelo
 
     def gerar(self, contexto: ContextoGeracao, erro_anterior: str | None) -> CodigoGerado:

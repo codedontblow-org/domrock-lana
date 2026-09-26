@@ -84,3 +84,4 @@ xxhash==4.0.1
 zstandard==0.25.0
 numpy==2.5.3
 pandas==3.0.6
+langchain-groq==1.1.3
