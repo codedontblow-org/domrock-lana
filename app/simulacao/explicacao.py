@@ -1,27 +1,50 @@
 """Explicação em linguagem natural do resultado já apurado.
 
-A LLM só redige: recebe os números prontos e não pode calcular nem inventar valores.
+A LLM só redige: recebe os números prontos, em frases, e não pode calcular nem inventar valores.
 Se a LLM falhar, a simulação continua com um texto padrão; o número nunca depende dela.
+
+Contra texto com "cara de IA" (pedido do time: "com grande otimismo mas mantendo a atenção
+necessária", "apresento os resultados…"):
+1. o prompt pede conclusão primeiro, fala de colega e proíbe anunciar o próprio tom;
+2. `cliches_encontrados` confere a resposta; havendo clichê, a LLM reescreve uma vez sabendo quais;
+3. se insistir, as frases com clichê saem; se sobrar pouco, usa o resumo determinístico.
 """
-import json
 from typing import Protocol
 
 from langchain_core.runnables import Runnable
 
 from app.core.config import extract_text
+from app.simulacao.texto_humano import (
+    cliches_encontrados, fatos_da_simulacao, remover_frases_com_cliche, resumo_deterministico,
+)
 
 TEXTO_PADRAO = "Simulação concluída. Veja os totais e o veredito de orçamento abaixo."
+MINIMO_CARACTERES = 120
 
-PROMPT_EXPLICACAO = """Você é Lana, assistente de campanhas de vendas. Explique em até 5 frases, em
-português e em Markdown, o resultado desta simulação para um gerente de vendas, num tom
-empresarial e acolhedor, otimista porém crítico, sem gírias e com no máximo um emoji.
-Use SOMENTE os números abaixo, sem recalcular nem inventar valores. Diga se cabe no orçamento, se a meta foi atingida e onde o custo se concentra.
-Escreva dinheiro como R$ 23.736,17 e percentuais como 4,94%. Folga negativa é quanto passa do
-orçamento. Códigos de marca: 10 Preto, 20 Branco, 30 Azul, 40 Vermelho, 50 Amarelo, 60 Cinza.
-Códigos de cargo: 100 vendedor loja, 150 gerente, 200 vendedor balcão, 300 assistente de vendas.
+PROMPT_EXPLICACAO = """Você é Lana, analista de campanhas de vendas, comentando uma simulação com
+o gerente que a pediu, como uma colega de trabalho faria numa conversa rápida.
 
-{resultado}
-"""
+Fatos (use só estes números, exatamente como estão escritos):
+{fatos}
+
+Como escrever:
+- A primeira frase já dá a conclusão: cabe ou não no orçamento, com o valor.
+- Depois, em 2 ou 3 frases, diga o que mais pesa no custo e uma sugestão concreta ligada aos
+  números (ex.: reduzir o acréscimo, restringir marcas ou cargos, ajustar o período).
+- Frases curtas e diretas, em português do Brasil, sem Markdown de título e sem listas.
+- Seja otimista quando os números permitem e aponte o risco quando existe, mas NUNCA descreva
+  o seu tom ou atitude ("com otimismo", "com atenção", "com cautela").
+- Não cumprimente, não se apresente, não diga "apresento", "segue", "nossa simulação".
+- Não use: vale ressaltar, é importante, crucial, fundamental, alavancar, impulsionar, otimizar,
+  potencializar, jornada, excelente, incrível, folga negativa, emojis.
+
+Exemplo do tom certo (números de outra campanha, não copie):
+Estoura o orçamento de R$ 10.000,00 em R$ 2.140,00. Quase todo o custo vem da marca Preto, que
+concentra 81% do acréscimo, puxado pelos vendedores de loja. A meta de vendas foi batida com
+folga (134%), então dá para manter a campanha e cortar o acréscimo para 0,7% ou tirar a marca Preto.
+{correcao}"""
+
+CORRECAO = "\nSua versão anterior usou expressões proibidas ({cliches}). Reescreva sem elas."
 
 
 class Explicador(Protocol):
@@ -29,14 +52,30 @@ class Explicador(Protocol):
 
 
 class ExplicadorLlm:
-    """Ex.: ExplicadorLlm(get_ai_model()).explicar({"totais": {...}})"""
+    """Ex.: ExplicadorLlm(get_ai_model()).explicar({"totais": {...}, "orcamento": {...}, ...})"""
 
     def __init__(self, modelo: Runnable) -> None:
         self._modelo = modelo
 
     def explicar(self, resumo: dict[str, object]) -> str:
-        prompt = PROMPT_EXPLICACAO.format(resultado=json.dumps(resumo, ensure_ascii=False, indent=2))
         try:
-            return extract_text(self._modelo.invoke(prompt)) or TEXTO_PADRAO
+            return self._explicar_sem_cliche(resumo)
         except Exception:  # explicação é acessória; falha da LLM não derruba a simulação
             return TEXTO_PADRAO
+
+    def _explicar_sem_cliche(self, resumo: dict) -> str:
+        fatos = "\n".join(f"- {fato}" for fato in fatos_da_simulacao(resumo))
+        texto = self._redigir(fatos, correcao="")
+        cliches = cliches_encontrados(texto)
+        if cliches:
+            texto = self._redigir(fatos, correcao=CORRECAO.format(cliches=", ".join(cliches)))
+        return _limpar_ou_resumir(texto, resumo)
+
+    def _redigir(self, fatos: str, correcao: str) -> str:
+        return extract_text(self._modelo.invoke(PROMPT_EXPLICACAO.format(fatos=fatos, correcao=correcao)))
+
+
+def _limpar_ou_resumir(texto: str, resumo: dict) -> str:
+    """Tira as frases com clichê; se sobrar pouco, o texto vem só dos números."""
+    limpo = remover_frases_com_cliche(texto) if cliches_encontrados(texto) else texto.strip()
+    return limpo if len(limpo) >= MINIMO_CARACTERES else resumo_deterministico(resumo)
