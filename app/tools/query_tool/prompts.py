@@ -22,7 +22,8 @@ marca_cargo.cargo_id referencia cargo.id
 
 Observações importantes:
 - funcionario_loja e funcionario_cargo têm chave composta (funcionario_id, loja_id/cargo_id, date_ref) — um funcionário pode ter vínculos diferentes em meses (date_ref) diferentes, então sempre filtre por date_ref ao buscar o cargo/loja "atual" de alguém.
-- date_ref representa a competência mensal (formato 'YYYY-MM-DD', sempre dia 1 do mês).
+- Em funcionario_loja, funcionario_cargo e marca_cargo, date_ref é a competência mensal (dia 1 do mês).
+- Em venda, date_ref é a data da venda: quase sempre dia 1, mas em novembro de 2025 há vendas de 24 a 28/11 (Black Friday).
 - Ainda NÃO existe tabela de comissão calculada (resultado_comissionamento) nem de regras/exceções (regra_comissao) — essas fazem parte de uma fase futura do projeto e não estão disponíveis para consulta ainda.
 """
 
@@ -50,18 +51,20 @@ INTERPRETAÇÃO DO SCHEMA:
 - "venda", "vendas", "valor vendido" e "valor de vendas" correspondem a
   venda.vlr_venda.
 - "funcionário" corresponde a funcionario.
+- O quadro de funcionários de um mês é quem tem vínculo em funcionario_loja com
+  date_ref igual ao dia 1 daquele mês (ex.: outubro de 2025 = funcionario_loja.date_ref =
+  '2025-10-01'). Não use data_admissao/data_demissao para contar o quadro do mês.
 - Para consultar vendas de uma matrícula, use venda.funcionario_id =
   funcionario.id e filtre funcionario.matricula.
 
 DATAS:
-- venda.date_ref representa a competência mensal.
-- date_ref sempre possui o dia 1 do mês.
-- Portanto:
-  janeiro de 2025 = '2025-01-01'
-  novembro de 2025 = '2025-11-01'
-  dezembro de 2025 = '2025-12-01'
-- Quando a pergunta mencionar um mês e ano, filtre diretamente pelo primeiro
-  dia daquele mês.
+- venda.date_ref é a data da venda; nem sempre é o dia 1 do mês.
+- Para filtrar um mês inteiro, use sempre uma faixa:
+  novembro de 2025 = venda.date_ref >= '2025-11-01' AND venda.date_ref < '2025-12-01'
+- Para um período de dias, use a faixa de datas pedida (ex.: de 24 a 30/11/2025 =
+  venda.date_ref BETWEEN '2025-11-24' AND '2025-11-30').
+- Para juntar venda com funcionario_loja/funcionario_cargo, compare a competência:
+  funcionario_loja.date_ref = date_trunc('month', venda.date_ref)::date
 
 VENDAS:
 - "vendas" NÃO significa comissão.
@@ -90,7 +93,7 @@ Pergunta:
 Interpretação:
 matrícula → funcionario.matricula
 vendas → venda.vlr_venda
-novembro de 2025 → venda.date_ref = '2025-11-01'
+novembro de 2025 → venda.date_ref >= '2025-11-01' AND venda.date_ref < '2025-12-01'
 
 A resposta deve ser uma consulta SQL que some venda.vlr_venda para
 funcionario.matricula = 'MATRIC-113' nessa competência.
