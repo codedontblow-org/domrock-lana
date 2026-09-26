@@ -12,8 +12,16 @@ PARAMETROS_REGRA = ["bases", "apuracao_base", "competencias"]
 IMPORTS_PERMITIDOS = frozenset({"pandas", "numpy", "math", "datetime"})
 NOMES_PROIBIDOS = frozenset({
     "open", "exec", "eval", "compile", "__import__", "input", "globals", "locals",
-    "vars", "getattr", "setattr", "delattr", "breakpoint", "exit", "quit",
+    "vars", "getattr", "setattr", "delattr", "breakpoint", "exit", "quit", "help",
 })
+# Atributos que levam do pandas/numpy ao sistema (ex.: pd.io.common.os.system) ou executam
+# texto como código (DataFrame.query/eval). Leitura de arquivo é bloqueada pelo prefixo read_.
+ATRIBUTOS_PROIBIDOS = frozenset({
+    "os", "sys", "io", "subprocess", "builtins", "importlib", "ctypes", "ctypeslib", "lib",
+    "core", "compat", "util", "testing", "f2py", "distutils", "eval", "query", "system",
+    "popen", "load", "loadtxt", "genfromtxt", "fromfile", "memmap", "ExcelFile", "HDFStore",
+})
+PREFIXOS_ATRIBUTO_PROIBIDOS = ("_", "read_")
 
 
 class CodigoInvalidoError(ValueError):
@@ -51,17 +59,22 @@ def _validar_no(no: ast.AST) -> None:
     if isinstance(no, ast.Import):
         _validar_imports([alias.name for alias in no.names])
     elif isinstance(no, ast.ImportFrom):
-        _validar_imports([no.module or ""])
-    elif isinstance(no, ast.Name) and no.id in NOMES_PROIBIDOS:
+        modulo = no.module or ""
+        _validar_imports([modulo, *(f"{modulo}.{alias.name}" for alias in no.names)])
+    elif isinstance(no, ast.Name) and (no.id in NOMES_PROIBIDOS or no.id.startswith("__")):
         raise CodigoInvalidoError(f"Uso proibido de '{no.id}' na linha {no.lineno}")
-    elif isinstance(no, ast.Attribute) and no.attr.startswith("__"):
-        raise CodigoInvalidoError(f"Acesso proibido a atributo dunder '{no.attr}' na linha {no.lineno}")
+    elif isinstance(no, ast.Attribute) and _atributo_proibido(no.attr):
+        raise CodigoInvalidoError(f"Acesso proibido ao atributo '{no.attr}' na linha {no.lineno}")
+
+
+def _atributo_proibido(nome: str) -> bool:
+    return nome in ATRIBUTOS_PROIBIDOS or nome.startswith(PREFIXOS_ATRIBUTO_PROIBIDOS)
 
 
 def _validar_imports(modulos: list[str]) -> None:
     for modulo in modulos:
-        raiz = modulo.split(".")[0]
-        if raiz not in IMPORTS_PERMITIDOS:
+        raiz, *submodulos = modulo.split(".")
+        if raiz not in IMPORTS_PERMITIDOS or any(_atributo_proibido(parte) for parte in submodulos):
             raise CodigoInvalidoError(
                 f"Import proibido: '{modulo}'; permitidos: {sorted(IMPORTS_PERMITIDOS)}"
             )

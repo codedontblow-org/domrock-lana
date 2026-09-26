@@ -1,11 +1,11 @@
 """Execução isolada do código gerado.
 
-Sprint 1: subprocesso `python -I` com ambiente vazio, timeout e `setrlimit` (memória, CPU,
-escrita em disco). Limitação aceita: roda no mesmo container da Lana. A Sprint 2 pode trocar
-por um container efêmero sem rede, implementando o mesmo protocolo `CodeRunner`.
+Sprint 1: subprocesso `python -I -B` com ambiente vazio e timeout; o harness aplica os limites
+de memória, CPU e disco e restringe builtins/imports. Limitação aceita: roda no mesmo container
+da Lana e tem rede. A Sprint 2 pode trocar por um container efêmero sem rede, implementando o
+mesmo protocolo `CodeRunner`.
 """
 import json
-import resource
 import subprocess
 import sys
 import tempfile
@@ -17,9 +17,8 @@ from typing import Protocol
 import pandas as pd
 
 CAMINHO_HARNESS = Path(__file__).with_name("harness.py")
-LIMITE_MEMORIA_BYTES = 2 * 1024**3
 TIMEOUT_PADRAO_S = 60
-MARGEM_CPU_S = 5
+LIMITE_STDERR = 1000
 
 
 @dataclass(frozen=True)
@@ -63,18 +62,10 @@ class SubprocessRunner:
     def _rodar(self, payload: str) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as diretorio_vazio:
             return subprocess.run(
-                [sys.executable, "-I", "-B", str(CAMINHO_HARNESS)],
+                [sys.executable, "-I", "-B", str(CAMINHO_HARNESS), str(self._timeout_s)],
                 input=payload, capture_output=True, text=True, timeout=self._timeout_s,
-                env={}, cwd=diretorio_vazio, preexec_fn=self._limitar_recursos,
+                env={}, cwd=diretorio_vazio,
             )
-
-    def _limitar_recursos(self) -> None:
-        resource.setrlimit(resource.RLIMIT_AS, (LIMITE_MEMORIA_BYTES, LIMITE_MEMORIA_BYTES))
-        # Rede de segurança acima do timeout de relógio, para o timeout ser reportado como tal.
-        limite_cpu = self._timeout_s + MARGEM_CPU_S
-        resource.setrlimit(resource.RLIMIT_CPU, (limite_cpu, limite_cpu))
-        # Bloqueia escrita em arquivos regulares; stdout/stdin são pipes e não são afetados.
-        resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
 
 
 def _montar_payload(
@@ -98,15 +89,22 @@ def _ler_envelope(processo: subprocess.CompletedProcess[str]) -> ExecucaoCodigo:
     except json.JSONDecodeError:
         return ExecucaoCodigo(
             "erro_harness",
-            mensagem=f"Saída inválida (exit {processo.returncode}): {processo.stderr[-1000:]}",
+            mensagem=f"Saída inválida (exit {processo.returncode}): {processo.stderr[-LIMITE_STDERR:]}",
         )
     if envelope["status"] != "ok":
-        return ExecucaoCodigo(envelope["status"], mensagem=f"{envelope['mensagem']}\n{envelope['traceback']}")
+        mensagem = f"{envelope['mensagem']}\n{envelope['traceback']}"
+        return ExecucaoCodigo(envelope["status"], mensagem=mensagem + _saida_do_codigo(processo))
     return ExecucaoCodigo(
         "ok",
         apuracao_simulada=_de_json(envelope["apuracao_simulada"]),
         contribuicoes=_de_json(envelope["contribuicoes"]),
     )
+
+
+def _saida_do_codigo(processo: subprocess.CompletedProcess[str]) -> str:
+    """Prints do código gerado (vão para o stderr) ajudam a LLM a corrigir na nova tentativa."""
+    saida = processo.stderr.strip()
+    return f"\nSaída do código:\n{saida[-LIMITE_STDERR:]}" if saida else ""
 
 
 def _de_json(registros_json: str) -> pd.DataFrame:

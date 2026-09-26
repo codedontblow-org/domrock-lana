@@ -47,3 +47,28 @@ def test_runner_bloqueia_escrita_em_disco_mesmo_se_passar_pela_validacao() -> No
     execucao = _executar(fonte)
 
     assert not execucao.ok
+
+
+def test_runner_ignora_print_do_codigo_gerado_no_resultado() -> None:
+    fonte = fonte_modelo(parametros_black_friday()).replace(
+        "    simulada = apuracao_base.copy()", "    print('depurando')\n    simulada = apuracao_base.copy()"
+    )
+
+    execucao = _executar(fonte)
+
+    assert execucao.ok, execucao.mensagem
+
+
+def test_runner_mostra_o_print_do_codigo_quando_ele_falha() -> None:
+    execucao = _executar(CABECALHO + "    print('coluna_x ausente')\n    raise KeyError('x')\n")
+
+    assert execucao.status == "erro_codigo"
+    assert "coluna_x ausente" in execucao.mensagem
+
+
+def test_runner_bloqueia_import_e_open_em_tempo_de_execucao() -> None:
+    for corpo in ("    import os\n", "    open('/proc/1/environ')\n"):
+        execucao = _executar(CABECALHO + corpo + "    return {}\n")
+
+        assert execucao.status == "erro_codigo"
+        assert "ImportError" in execucao.mensagem or "NameError" in execucao.mensagem
