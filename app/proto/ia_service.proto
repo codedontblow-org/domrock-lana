@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package br.com.camplana;
+
+option java_multiple_files = true;
+option java_package = "br.com.camplana";
+
+service IAService {
+  rpc GerarResposta (PromptRequest) returns (PromptResponse);
+}
+
+message PromptRequest {
+  int32 usuario_id = 1;
+  string prompt = 2;
+  string contexto = 3;
+}
+
+message PromptResponse {
+  string resposta = 1;
+  int32 tokens_utilizados = 2;
+}
