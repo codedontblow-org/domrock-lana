@@ -7,6 +7,21 @@ TABELAS_PERMITIDAS = {
 }
 
 
+LIMITE_LINHAS = 50
+
+# Funções sem tipo próprio no sqlglot (exp.Anonymous) precisam estar nesta lista. Sem ela,
+# passavam pg_read_file, pg_sleep, current_setting etc.
+FUNCOES_ANONIMAS_PERMITIDAS = frozenset({
+    "date_part", "to_char", "to_date", "age", "make_date", "nullif", "greatest", "least",
+    "coalesce", "round", "trunc", "abs", "ceil", "floor", "lower", "upper", "initcap",
+    "length", "lpad", "rpad", "string_agg", "array_agg", "percentile_cont", "percentile_disc",
+    "stddev", "variance", "rank", "dense_rank", "row_number", "ntile", "lag", "lead",
+})
+# Funções com tipo próprio que revelam dados do servidor em vez do negócio.
+FUNCOES_TIPADAS_PROIBIDAS = ("Current",)
+FUNCOES_TIPADAS_LIBERADAS = frozenset({"CurrentDate", "CurrentTimestamp"})
+
+
 class SqlInseguro(Exception):
     """Exceção levantada quando uma consulta SQL não passa pela validação."""
     pass
@@ -44,5 +59,28 @@ def validar(sql: str) -> str:
     if fora_da_lista:
         raise SqlInseguro(f"Tabela não autorizada: {fora_da_lista}")
 
-    # Gera novamente o SQL a partir da árvore, em formato PostgreSQL normalizado.
-    return arvore_sql.sql(dialect="postgres")
+    _validar_funcoes(arvore_sql)
+
+    # Gera novamente o SQL a partir da árvore, em formato PostgreSQL normalizado e com LIMIT.
+    return _limitar_linhas(arvore_sql).sql(dialect="postgres")
+
+
+def _validar_funcoes(arvore_sql: exp.Expression) -> None:
+    for funcao in arvore_sql.find_all(exp.Func):
+        if isinstance(funcao, exp.Anonymous) and funcao.name.lower() not in FUNCOES_ANONIMAS_PERMITIDAS:
+            raise SqlInseguro(f"Função não autorizada: {funcao.name}")
+        tipo = type(funcao).__name__
+        if tipo.startswith(FUNCOES_TIPADAS_PROIBIDAS) and tipo not in FUNCOES_TIPADAS_LIBERADAS:
+            raise SqlInseguro(f"Função não autorizada: {funcao.sql(dialect='postgres')}")
+
+
+def _limitar_linhas(arvore_sql: exp.Select) -> exp.Select:
+    """Garante LIMIT <= LIMITE_LINHAS: o resultado vai inteiro para o contexto da LLM.
+
+    Sem isso, "mostre todas as vendas" trazia ~30 mil linhas e estourava a cota do Gemini (429).
+    """
+    limite = arvore_sql.args.get("limit")
+    valor = limite.expression if limite is not None else None
+    if isinstance(valor, exp.Literal) and valor.is_int and int(valor.this) <= LIMITE_LINHAS:
+        return arvore_sql
+    return arvore_sql.limit(LIMITE_LINHAS)
