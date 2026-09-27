@@ -8,6 +8,10 @@ from app.core.config import get_settings
 def get_connection():
     settings = get_settings()
     conn = psycopg2.connect(settings.DATABASE_URL)
+    # Defesa em profundidade além do papel lana_leitura: sessão só de leitura e com timeout.
+    conn.set_session(readonly=True, autocommit=True)
+    with conn.cursor() as cursor:
+        cursor.execute("SET statement_timeout = '15s'")
     try:
         yield conn
     finally:

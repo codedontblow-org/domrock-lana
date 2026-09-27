@@ -20,3 +20,9 @@ def consultar_banco(pergunta: str) -> dict:
         pergunta: Pergunta em linguagem natural sobre os dados de vendas
             e funcionários.
     """
+
+    body = QueryRequestBody(pergunta=pergunta)
+
+    resposta = executar(body)
+
+    return resposta.model_dump()
