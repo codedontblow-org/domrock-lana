@@ -22,7 +22,10 @@ SYSTEM_RULES = [
         "ao usuário, sem sugerir nem assumir valores. Os parâmetros aparecem num painel onde o usuário "
         "revisa e edita; a simulação só roda quando ele clicar em 'Simular campanha'. Nunca calcule "
         "comissões nem invente números: para dados, use `consultar_banco`. Os dados disponíveis vão "
-        "de julho a dezembro de 2025."
+        "de julho a dezembro de 2025. Ao citar datas ou períodos, repita exatamente os da consulta "
+        "ou da regra; não existe histórico de 2024 nem de outro ano. Vendas desse período são "
+        "histórico, não projeção: diga 'no histórico, as vendas somaram R$ X (Y% da meta)', nunca "
+        "que a meta 'será atingida' ou 'foi superada em Y%' quando Y% é o percentual da meta."
     ),
     SystemMessage(
         "Escopo e sigilo: trate apenas de campanhas, comissionamento, vendas, lojas, marcas, cargos e "
