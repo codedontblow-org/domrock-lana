@@ -31,6 +31,20 @@ def test_simular_black_friday_calcula_totais_orcamento_e_meta() -> None:
     assert resultado.orcamento.cabe_no_orcamento and resultado.orcamento.folga == 7.0
     assert resultado.meta.vendas_periodo == 1300.0 and resultado.meta.atingida
     assert resultado.tentativas == 1 and resultado.explicacao == "explicação fake"
+    assert resultado.impacto.pessoas_impactadas == 2 and resultado.maiores_lojas[0].codigo == "2"
+    assert resultado.ressalvas
+
+
+def test_simular_propoe_percentual_que_cabe_simulado_de_novo() -> None:
+    gerador = FakeGeradorSequencial([fonte_modelo(parametros_black_friday())])
+    regra = montar_regra({**VALORES, "orcamento_limite": 10.0}, "bf", "draft-1")
+
+    resultado = _simulador(gerador).simular(regra)
+
+    # +1% custa 13,00; com 10,00 cabe 0,76% (M1 500 * 0,76% = 3,80 e M2 800 * 0,76% = 6,08).
+    percentual = next(c for c in resultado.cenarios if c.tipo == "ajustar_acrescimo")
+    assert percentual.pct_acrescimo == 0.76 and percentual.custo_incremental == 9.88
+    assert percentual.cabe_no_orcamento
 
 
 def test_simular_tenta_de_novo_com_o_erro_da_primeira_tentativa() -> None:

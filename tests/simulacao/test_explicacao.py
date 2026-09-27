@@ -61,3 +61,29 @@ def test_explicar_usa_os_numeros_quando_a_llm_insiste_no_cliche() -> None:
 
 def test_explicar_nao_derruba_a_simulacao_quando_a_llm_falha() -> None:
     assert ExplicadorLlm(FakeModeloQueQuebra(responses=["x"])).explicar(RESUMO) == TEXTO_PADRAO
+
+
+def test_fato_da_meta_e_historico_e_nao_diz_superou_em_120() -> None:
+    meta = {"meta_vendas": 2000000.0, "vendas_periodo": 2406125.93, "pct_atingimento": 120.31, "atingida": True}
+
+    fatos = " ".join(fatos_da_simulacao({**RESUMO, "meta": meta}))
+
+    assert "No histórico, as vendas desse período somaram R$ 2.406.125,93, 120% da meta" in fatos
+    assert "(20% acima da meta)" in fatos and "batida" not in fatos
+
+
+def test_fatos_trazem_pessoas_loja_e_cenarios_calculados() -> None:
+    resumo = {
+        **RESUMO,
+        "impacto": {"pessoas_impactadas": 12, "pessoas_total": 40, "media_por_pessoa": 139.03, "maior_acrescimo": 480.0},
+        "maiores_lojas": [{"codigo": "13", "baseline": 1, "simulado": 2, "diferenca": 834.17}],
+        "cenarios": [{"tipo": "ajustar_acrescimo", "titulo": "Acréscimo menor, dentro do orçamento",
+                      "pct_acrescimo": 0.29, "marcas_alvo": ["30"], "custo_incremental": 967.64,
+                      "economia": 700.7, "cabe_no_orcamento": True}],
+    }
+
+    fatos = " ".join(fatos_da_simulacao(resumo))
+
+    assert "12 de 40 pessoas recebem o acréscimo, em média R$ 139,03 cada" in fatos
+    assert "loja 13, R$ 834,17 (50% do total)" in fatos
+    assert "acréscimo de 0,29%, custo extra R$ 967,64, cabe no orçamento" in fatos

@@ -32,12 +32,40 @@ class VereditoOrcamento(BaseModel):
 
 
 class AtingimentoMeta(BaseModel):
-    """Venda realizada no período e nas marcas da regra contra a meta informada."""
+    """Venda que JÁ aconteceu no período e nas marcas da regra, comparada à meta informada.
+
+    É histórico (backtest), não projeção: a base não permite prever vendas futuras.
+    """
 
     meta_vendas: float
     vendas_periodo: float
     pct_atingimento: float
     atingida: bool
+
+
+class ImpactoPessoas(BaseModel):
+    """Quantas matrículas recebem o acréscimo e quanto, somado no período."""
+
+    pessoas_impactadas: int
+    pessoas_total: int
+    media_por_pessoa: float
+    maior_acrescimo: float
+
+
+class CenarioAlternativo(BaseModel):
+    """Variação da regra já calculada (nunca estimada pela LLM), pronta para aplicar no painel.
+
+    `tipo`: "ajustar_acrescimo" (maior % que cabe no orçamento) ou "sem_marca" (tira a marca
+    que mais pesa). `economia` é o custo atual menos o do cenário (negativo = custa mais).
+    """
+
+    tipo: str
+    titulo: str
+    pct_acrescimo: float
+    marcas_alvo: list[str]
+    custo_incremental: float
+    economia: float
+    cabe_no_orcamento: bool
 
 
 class ResultadoSimulacao(BaseModel):
@@ -48,6 +76,10 @@ class ResultadoSimulacao(BaseModel):
     por_cargo: list[QuebraDimensao]
     orcamento: VereditoOrcamento
     meta: AtingimentoMeta
+    impacto: ImpactoPessoas
+    maiores_lojas: list[QuebraDimensao]
+    cenarios: list[CenarioAlternativo]
+    ressalvas: list[str]
     codigo: str
     origem_codigo: str
     tentativas: int

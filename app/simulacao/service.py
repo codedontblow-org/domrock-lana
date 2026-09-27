@@ -5,19 +5,23 @@ from dataclasses import dataclass, replace
 
 import pandas as pd
 
-from app.simulacao.assercoes import conferir_contra_referencia, conferir_resultado
+from app.simulacao.assercoes import AssercaoViolada, conferir_contra_referencia, conferir_resultado
 from app.simulacao.bases import BasesSimulacao, FonteBases, competencias_do_periodo
 from app.simulacao.baseline import calcular_baseline
+from app.simulacao.cenarios import SimularCusto, propor_cenarios
 from app.simulacao.dtos import ResultadoSimulacao
 from app.simulacao.explicacao import Explicador
-from app.simulacao.resumo import avaliar_meta, avaliar_orcamento, calcular_totais, quebrar_por
+from app.simulacao.resumo import (
+    RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, maiores_lojas, medir_impacto, quebrar_por,
+)
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
-from app.tools.code_tool.gerador import GeradorCodigo
+from app.tools.code_tool.gerador import GeradorCodigo, GeradorCodigoModelo
 from app.tools.code_tool.runner import CodeRunner
 from app.tools.regra_tool.dtos import ParametrosSimulacao, RegraCampanha
 from app.tools.regra_tool.parametros import ler_parametros
 
 LINHAS_AMOSTRA = 10
+CAMPOS_EXPLICACAO = {"totais", "por_marca", "por_cargo", "orcamento", "meta", "impacto", "maiores_lojas", "cenarios"}
 
 
 class SimulacaoFalhouError(RuntimeError):
@@ -52,14 +56,17 @@ class SimuladorCampanha:
 
     `referencia` gera o código determinístico do mesmo contrato; quando existe, todo resultado
     da IA é conferido contra ele. O contrato da Sprint 1 tem forma fixa, então sempre há referência.
+    `recalculo` gera o código determinístico que simula de novo os cenários alternativos.
     """
 
     def __init__(
         self, fonte_bases: FonteBases, gerador: GeradorCodigo, runner: CodeRunner,
         explicador: Explicador, referencia: GeradorCodigo | None = None, max_tentativas: int = 2,
+        recalculo: GeradorCodigo | None = None,
     ) -> None:
         self._fonte_bases, self._gerador, self._runner = fonte_bases, gerador, runner
         self._explicador, self._referencia, self._max_tentativas = explicador, referencia, max_tentativas
+        self._recalculo = recalculo or GeradorCodigoModelo()
 
     def simular(self, regra: RegraCampanha) -> ResultadoSimulacao:
         parametros = ler_parametros(regra)
@@ -69,7 +76,7 @@ class SimuladorCampanha:
         contexto = ContextoGeracao(parametros, competencias, _amostras(bases, baseline))
         conferencia = self._executar_referencia(contexto, bases, baseline)
         aprovada = self._gerar_e_executar(contexto, bases, baseline, conferencia)
-        return self._resumir(regra.rule_id, parametros, competencias, bases, aprovada)
+        return self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
 
     def _carregar(self, competencias: list[str]) -> BasesSimulacao:
         bases = self._fonte_bases.carregar(competencias)
@@ -117,21 +124,35 @@ class SimuladorCampanha:
         return conferir_resultado(baseline, execucao.apuracao_simulada, execucao.contribuicoes, contexto.parametros)
 
     def _resumir(
-        self, rule_id: str, parametros: ParametrosSimulacao, competencias: list[str],
-        bases: BasesSimulacao, aprovada: TentativaAprovada,
+        self, rule_id: str, contexto: ContextoGeracao, bases: BasesSimulacao,
+        baseline: pd.DataFrame, aprovada: TentativaAprovada,
     ) -> ResultadoSimulacao:
-        totais = calcular_totais(aprovada.comparacao)
+        comparacao, parametros = aprovada.comparacao, contexto.parametros
+        totais = calcular_totais(comparacao)
+        orcamento = avaliar_orcamento(totais, parametros.orcamento_limite)
+        por_marca = quebrar_por(comparacao, "cod_marca")
         resultado = ResultadoSimulacao(
-            rule_id=rule_id, competencias=competencias, totais=totais,
-            por_marca=quebrar_por(aprovada.comparacao, "cod_marca"),
-            por_cargo=quebrar_por(aprovada.comparacao, "cod_cargo"),
-            orcamento=avaliar_orcamento(totais, parametros.orcamento_limite),
-            meta=avaliar_meta(bases.vendas, parametros),
-            codigo=aprovada.codigo.fonte, origem_codigo=aprovada.codigo.origem,
+            rule_id=rule_id, competencias=contexto.competencias, totais=totais,
+            por_marca=por_marca, por_cargo=quebrar_por(comparacao, "cod_cargo"),
+            orcamento=orcamento, meta=avaliar_meta(bases.vendas, parametros),
+            impacto=medir_impacto(comparacao), maiores_lojas=maiores_lojas(comparacao),
+            cenarios=propor_cenarios(parametros, orcamento, por_marca, self._custo_com(contexto, bases, baseline)),
+            ressalvas=RESSALVAS, codigo=aprovada.codigo.fonte, origem_codigo=aprovada.codigo.origem,
             tentativas=aprovada.numero, explicacao="", observacao=aprovada.observacao,
         )
-        resumo = resultado.model_dump(include={"totais", "por_marca", "por_cargo", "orcamento", "meta"})
+        resumo = resultado.model_dump(include=CAMPOS_EXPLICACAO)
         return resultado.model_copy(update={"explicacao": self._explicador.explicar(resumo)})
+
+    def _custo_com(self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame) -> SimularCusto:
+        """Simula de novo, com o código determinístico, a mesma regra com outros parâmetros."""
+        def simular_custo(parametros: ParametrosSimulacao) -> float | None:
+            variante = replace(contexto, parametros=parametros)
+            try:
+                comparacao = self._executar(self._recalculo.gerar(variante, None), variante, bases, baseline)
+            except (ExecucaoFalhouError, AssercaoViolada):  # cenário é acessório: sem ele, o resultado segue
+                return None
+            return calcular_totais(comparacao).diferenca
+        return simular_custo
 
 
 def _amostras(bases: BasesSimulacao, baseline: pd.DataFrame) -> dict[str, str]:

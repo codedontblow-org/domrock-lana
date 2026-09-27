@@ -29,8 +29,9 @@ Fatos (use só estes números, exatamente como estão escritos):
 
 Como escrever:
 - A primeira frase já dá a conclusão: cabe ou não no orçamento, com o valor.
-- Depois, em 2 ou 3 frases, diga o que mais pesa no custo e uma sugestão concreta ligada aos
-  números (ex.: reduzir o acréscimo, restringir marcas ou cargos, ajustar o período).
+- Depois, em 2 ou 3 frases, diga o que mais pesa no custo e sugira UM dos cenários calculados
+  que estão nos fatos, com o percentual e o custo dele. Nunca invente outro percentual ou valor.
+- Vendas do período são histórico: não diga que a meta "foi batida" nem "vai ser atingida".
 - Frases curtas e diretas, em português do Brasil, sem Markdown de título e sem listas.
 - Seja otimista quando os números permitem e aponte o risco quando existe, mas NUNCA descreva
   o seu tom ou atitude ("com otimismo", "com atenção", "com cautela").
@@ -40,8 +41,8 @@ Como escrever:
 
 Exemplo do tom certo (números de outra campanha, não copie):
 Estoura o orçamento de R$ 10.000,00 em R$ 2.140,00. Quase todo o custo vem da marca Preto, que
-concentra 81% do acréscimo, puxado pelos vendedores de loja. A meta de vendas foi batida com
-folga (134%), então dá para manter a campanha e cortar o acréscimo para 0,7% ou tirar a marca Preto.
+concentra 81% do acréscimo, puxado pelos vendedores de loja. Com acréscimo de 0,82% a campanha
+custa R$ 9.980,00 e cabe; outra saída é tirar a marca Preto, que baixa o custo para R$ 2.300,00.
 {correcao}"""
 
 CORRECAO = "\nSua versão anterior usou expressões proibidas ({cliches}). Reescreva sem elas."

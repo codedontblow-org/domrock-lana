@@ -93,6 +93,18 @@ class FakeExplicador:
         return "explicação fake"
 
 
+class FakeSimuladorCusto:
+    """Custo proporcional ao % (como a regra real), e registra cada parâmetro simulado."""
+
+    def __init__(self, custo_por_ponto: float, falhar: bool = False) -> None:
+        self.custo_por_ponto, self.falhar = custo_por_ponto, falhar
+        self.simulados: list[ParametrosSimulacao] = []
+
+    def __call__(self, parametros: ParametrosSimulacao) -> float | None:
+        self.simulados.append(parametros)
+        return None if self.falhar else round(parametros.pct_acrescimo * self.custo_por_ponto, 2)
+
+
 def fonte_modelo(parametros: ParametrosSimulacao) -> str:
     contexto = ContextoGeracao(parametros, ["2025-11"], {})
     return GeradorCodigoModelo().gerar(contexto, None).fonte
