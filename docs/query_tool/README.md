@@ -1,8 +1,4 @@
 # Text-to-SQL Query Tool
-```bash
-# Rodar todos os testes da ferramenta
-pytest tests/tools/query_tool/ -v
-```
 
 ## Visão Geral
 Esta ferramenta permite que agentes de IA consultem o banco de dados relacional (PostgreSQL) usando linguagem natural. A arquitetura garante que a intenção do usuário seja traduzida em SQL, rigidamente validada contra injeções ou comandos destrutivos, executada no banco e devolvida como dados estruturados.
