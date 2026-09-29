@@ -1,4 +1,4 @@
-## Fluxo de Execução e Autocorreção (Flowchart)
+## Diagrama
 
 ```mermaid
 graph TD
