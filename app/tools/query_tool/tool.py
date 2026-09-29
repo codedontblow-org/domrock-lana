@@ -2,27 +2,20 @@ from langchain_core.tools import tool
 from app.tools.query_tool.dtos import QueryRequestBody
 from app.tools.query_tool.service import executar
 
-
 @tool
 def consultar_banco(pergunta: str) -> dict:
     """
-    Consulta informações de comissionamento de funcionários no banco de dados.
+    Consulta métricas, vendas e funcionários da empresa convertendo linguagem natural em SQL.
 
-    Use esta ferramenta quando a pergunta exigir informações armazenadas
-    no banco de dados, como vendas, funcionários, lojas, marcas, cargos,
-    valores ou agregações desses dados.
-
-    Não use esta ferramenta para perguntas que não dependam dos dados
-    armazenados no banco, nem para cálculos de comissão já processados
-    (ainda não existem no banco — apenas dados brutos de venda).
-
+    DIRETRIZES DE USO PARA O AGENTE:
+    1. Envie a pergunta de forma clara. A ferramenta irá gerar o SQL e retornar os dados.
+    2. ANALISE O STATUS DE RETORNO:
+       - Se "sucesso": Use os 'dados' para responder ao usuário.
+       - Se "erro_execucao" ou "bloqueado": Leia o campo 'erro'. Ele conterá a falha do banco (ex: coluna inexistente). REFORMULE a sua 'pergunta' para contornar o erro e chame a ferramenta novamente.
+       - Se "recusado": Informe ao usuário o que está no campo 'motivo'.
+    
     Args:
-        pergunta: Pergunta em linguagem natural sobre os dados de vendas
-            e funcionários.
+        pergunta: Pergunta clara e detalhada sobre o que deseja buscar.
     """
-
     body = QueryRequestBody(pergunta=pergunta)
-
-    resposta = executar(body)
-
-    return resposta.model_dump()
+    return executar(body).model_dump()
