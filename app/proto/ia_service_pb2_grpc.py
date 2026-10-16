@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from app.proto import ia_service_pb2 as ia__service__pb2
+from app.proto import ia_service_pb2 as app_dot_proto_dot_ia__service__pb2
 
 GRPC_GENERATED_VERSION = '1.84.0'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in ia_service_pb2_grpc.py depends on'
+        + ' but the generated code in app/proto/ia_service_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -36,8 +36,8 @@ class IAServiceStub:
         """
         self.InvokeAgent = channel.unary_unary(
                 '/camplana.IAService/InvokeAgent',
-                request_serializer=ia__service__pb2.InvokeRequest.SerializeToString,
-                response_deserializer=ia__service__pb2.InvokeResponse.FromString,
+                request_serializer=app_dot_proto_dot_ia__service__pb2.InvokeRequest.SerializeToString,
+                response_deserializer=app_dot_proto_dot_ia__service__pb2.InvokeResponse.FromString,
                 _registered_method=True)
 
 
@@ -55,8 +55,8 @@ def add_IAServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'InvokeAgent': grpc.unary_unary_rpc_method_handler(
                     servicer.InvokeAgent,
-                    request_deserializer=ia__service__pb2.InvokeRequest.FromString,
-                    response_serializer=ia__service__pb2.InvokeResponse.SerializeToString,
+                    request_deserializer=app_dot_proto_dot_ia__service__pb2.InvokeRequest.FromString,
+                    response_serializer=app_dot_proto_dot_ia__service__pb2.InvokeResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -84,8 +84,8 @@ class IAService:
             request,
             target,
             '/camplana.IAService/InvokeAgent',
-            ia__service__pb2.InvokeRequest.SerializeToString,
-            ia__service__pb2.InvokeResponse.FromString,
+            app_dot_proto_dot_ia__service__pb2.InvokeRequest.SerializeToString,
+            app_dot_proto_dot_ia__service__pb2.InvokeResponse.FromString,
             options,
             channel_credentials,
             insecure,
