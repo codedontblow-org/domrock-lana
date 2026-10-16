@@ -39,11 +39,11 @@ def invoke(body: AgentRequest) -> AgentResponse | JSONResponse:
         return lana_invoke(body.chat_id, body.message, body.regra)
     except Exception as erro:
         # Cota da LLM (429) vira 503 com mensagem para o usuário, não um 500 sem explicação.
-        if _eh_limite_de_cota(erro):
+        if limite_de_cota(erro):
             return JSONResponse(status_code=503, content={"etapa": "cota_llm", "mensagem": MENSAGEM_COTA})
         raise
 
 
-def _eh_limite_de_cota(erro: Exception) -> bool:
+def limite_de_cota(erro: Exception) -> bool:
     texto = f"{type(erro).__name__} {erro}"
     return "RateLimit" in texto or "RESOURCE_EXHAUSTED" in texto or "429" in texto
