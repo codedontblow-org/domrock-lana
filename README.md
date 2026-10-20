@@ -105,6 +105,28 @@ As portas não vêm do `.env`: a HTTP é a do comando `uvicorn` (`--port`) e a g
 
 ---
 
+A Lana atende em duas portas:
+
+| Porta | Protocolo | Rota | Para quê |
+| --- | --- | --- | --- |
+| 50051 | gRPC | `IAService.InvokeAgent` ([`app/proto/ia_service.proto`](app/proto/ia_service.proto)) | Chat. É por aqui que o backend conversa com a Lana |
+| 8000 | HTTP | `POST /agent/invoke` | Chat (mesmo agente). Além do texto, devolve `events` (ferramentas usadas) e `regra` (ficha da campanha) |
+| 8000 | HTTP | `POST /simulacao` | Simula a campanha a partir da ficha (`regra`) |
+| 8000 | HTTP | `GET /` | Diz se a Lana está no ar |
+| 8000 | HTTP | `/docs` | Swagger, com os formatos de requisição e resposta |
+
+Erros que o backend precisa tratar:
+
+| Onde | Resposta | Quando |
+| --- | --- | --- |
+| `POST /agent/invoke` | 503 `{"etapa": "cota_llm", "mensagem": ...}` | O provedor de IA recusou por cota (429) |
+| `POST /simulacao` | 422 `{"etapa": ..., "mensagem": ...}` | Ficha incompleta (`validacao`), mês sem base importada (`dados`), código gerado que falhou nas duas tentativas (`geracao_codigo`) ou erro na comissão atual (`baseline`) |
+| gRPC | `RESOURCE_EXHAUSTED` | Cota do provedor de IA |
+| gRPC | `DEADLINE_EXCEEDED` | A Lana passou de 100 s |
+| gRPC | `INTERNAL` | Qualquer outro erro do agente |
+
+---
+
 ## 💻 Executando o Projeto
 ### Pré-requisitos
 
