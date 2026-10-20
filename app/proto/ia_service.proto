@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package camplana;
+
+option java_multiple_files = true;
+option java_package = "br.com.camplana.grpc";
+option java_outer_classname = "IaServiceProto";
+
+service IAService {
+  rpc InvokeAgent (InvokeRequest) returns (InvokeResponse);
+}
+
+message InvokeRequest {
+  string prompt = 1;
+  string chat_id = 2;
+  string regra_json = 3; 
+}
+
+message InvokeResponse {
+  string resposta = 1;
+  string events_json = 2;
+  string regra_json = 3;
+}
