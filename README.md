@@ -1,8 +1,29 @@
-# Camplana - Lana
+# Lana - Camplana
 
-A Lana é o agente de IA do Camplana. Ela conversa com o gestor em português, consulta a base de vendas (só leitura), monta a ficha da campanha e simula quanto a campanha custa em comissão.
+A Lana é o **agente de IA** do projeto **Camplana**. <br>
+Ela conversa com o gestor em português, consulta a base de vendas (só leitura), monta a ficha da campanha e simula quanto a campanha custa em comissão.
 
-Nenhum número da simulação vem da LLM: a IA gera o código da regra, o código roda isolado e o resultado é conferido com um cálculo determinístico. Quem chama a Lana é o backend (Spring), nunca o front.
+Nenhum número da simulação vem da LLM: a IA gera o código da regra, o código roda isolado e o resultado é conferido com um cálculo determinístico. <br>
+Quem chama a Lana é o backend (Spring), nunca o front.
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+![Python](https://img.shields.io/badge/Python-3.12-00B4F1?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-00B4F1?style=for-the-badge&logo=fastapi&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-00B4F1?style=for-the-badge&logo=langchain&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-00B4F1?style=for-the-badge&logo=langchain&logoColor=white)
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-00B4F1?style=for-the-badge&logo=googlegemini&logoColor=white)
+![OpenRouter](https://img.shields.io/badge/OpenRouter-00B4F1?style=for-the-badge&logo=openrouter&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-00B4F1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Pandas](https://img.shields.io/badge/Pandas-00B4F1?style=for-the-badge&logo=pandas&logoColor=white)
+![NumPy](https://img.shields.io/badge/NumPy-00B4F1?style=for-the-badge&logo=numpy&logoColor=white)
+![Pytest](https://img.shields.io/badge/Pytest-00B4F1?style=for-the-badge&logo=pytest&logoColor=white)
+![Uvicorn](https://img.shields.io/badge/Uvicorn-00B4F1?style=for-the-badge&logo=gunicorn&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-00B4F1?style=for-the-badge&logo=docker&logoColor=white)
+
+---
 
 ## 🧭 Onde a Lana fica no sistema
 
@@ -12,27 +33,22 @@ Front (Vue) ──► Backend (Spring) ──► Lana ──► PostgreSQL (pape
                                       └─────► Provedor de IA (Gemini, OpenRouter ou Groq)
 ```
 
-A Lana atende em duas portas:
+## 📢 Comunicação com o Backend (Spring)
 
-| Porta | Protocolo | Rota | Para quê |
-| --- | --- | --- | --- |
-| 50051 | gRPC | `IAService.InvokeAgent` ([`app/proto/ia_service.proto`](app/proto/ia_service.proto)) | Chat. É por aqui que o backend conversa com a Lana |
-| 8000 | HTTP | `POST /agent/invoke` | Chat (mesmo agente). Além do texto, devolve `events` (ferramentas usadas) e `regra` (ficha da campanha) |
-| 8000 | HTTP | `POST /simulacao` | Simula a campanha a partir da ficha (`regra`) |
-| 8000 | HTTP | `GET /` | Diz se a Lana está no ar |
-| 8000 | HTTP | `/docs` | Swagger, com os formatos de requisição e resposta |
+|  | Java (Spring) | Python (Lana) |
+|---|---|---|
+| Papel no gRPC | **Cliente** (inicia a chamada) | **Servidor** (escuta e responde) |
+| Classe principal | `IaGrpcClientService` (stub bloqueante) | `IAServiceServicer` |
+| Porta | usa `grpc.lana.port=50051` | escuta em `[::]:50051` |
+| Keepalive e deadline | `keepAliveTime(30s)` e `withDeadlineAfter(2 min)` | `keepalive_time_ms` e timeout de 100 s |
 
-Erros que o backend precisa tratar:
+> O `.proto` é o contrato comum: o Java gera o stub cliente (`IAServiceGrpc`) e o Python gera o servicer (`ia_service_pb2_grpc`).
 
-| Onde | Resposta | Quando |
-| --- | --- | --- |
-| `POST /agent/invoke` | 503 `{"etapa": "cota_llm", "mensagem": ...}` | O provedor de IA recusou por cota (429) |
-| `POST /simulacao` | 422 `{"etapa": ..., "mensagem": ...}` | Ficha incompleta (`validacao`), mês sem base importada (`dados`), código gerado que falhou nas duas tentativas (`geracao_codigo`) ou erro na comissão atual (`baseline`) |
-| gRPC | `RESOURCE_EXHAUSTED` | Cota do provedor de IA |
-| gRPC | `DEADLINE_EXCEEDED` | A Lana passou de 100 s |
-| gRPC | `INTERNAL` | Qualquer outro erro do agente |
+Leia mais em: [domrock-backend/docs/arquitetura-comunicacao.md](https://github.com/codedontblow-org/domrock-backend/tree/docs/atualizando-documentacao-gRPC/docs)
 
-## 📂 Estrutura do Projeto
+---
+
+## 📂 Estrutura do Repositório
 
 ```text
 domrock-lana/
@@ -63,16 +79,13 @@ domrock-lana/
 ├── Dockerfile
 ├── requirements.txt
 ├── requirements-dev.txt     # requirements.txt + pytest
-└── .env.example
+├── .env.example
+├── CHANGELOG.md            # Histórico de alterações
+├── LICENSE                 # Licença do projeto
+└── README.md               # Documentação principal
 ```
 
-## ⚙️ Tecnologias Utilizadas
-
-- Python 3.12 (CI e Docker usam 3.12.14; o 3.13 também funciona localmente)
-- FastAPI + Uvicorn (HTTP) e grpcio (gRPC)
-- LangGraph / LangChain, com Gemini, OpenRouter e Groq
-- psycopg2 (PostgreSQL), sqlglot (validação do SQL), rapidfuzz (guardrails)
-- pytest
+---
 
 ## 🔑 Variáveis de ambiente
 
@@ -80,18 +93,19 @@ A Lana lê o arquivo `.env` na raiz deste repositório (modelo em [`.env.example
 
 | Variável | Obrigatória | Padrão | O que é |
 | --- | --- | --- | --- |
-| `AI_PROVIDER` | sim | | Provedor principal: `GEMINI`, `OPENROUTER` ou `GROQ` |
-| `AI_MODEL` | sim | | Modelo principal, no nome do provedor (ex.: `gemini-3.5-flash-lite`) |
-| `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | a do provedor principal | | Provedor sem chave fica fora da cadeia |
-| `AI_FALLBACKS` | não | vazio | Reservas em ordem, se o principal falhar: `PROVEDOR:modelo,PROVEDOR:modelo` |
-| `AI_TIMEOUT_S` | não | `30` | Segundos por modelo antes de passar ao próximo da cadeia |
-| `DATABASE_URL` | para chat com dados e simulação | | Banco do backend com o papel `lana_leitura` (criado pela migração V3 do backend) |
-| `CODEGEN_MODO` | não | `llm` | `llm`: a IA gera o código e ele é conferido; `modelo`: usa só o cálculo fixo (plano B) |
+| `AI_PROVIDER` | ✔️ | - | Provedor principal: `GEMINI`, `OPENROUTER` ou `GROQ` |
+| `AI_MODEL` | ✔️ | - | Modelo principal, no nome do provedor (ex.: `gemini-3.5-flash-lite`) |
+| `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` | Provedor Principal | - | Provedor sem chave fica fora da cadeia |
+| `AI_FALLBACKS` | ❌ | vazio | Reservas em ordem, se o principal falhar: `PROVEDOR:modelo,PROVEDOR:modelo` |
+| `AI_TIMEOUT_S` | ❌ | `30` | Segundos por modelo antes de passar ao próximo da cadeia |
+| `DATABASE_URL` | Para chat com dados e simulação | - | Banco do backend com o papel `lana_leitura` (criado pela migração V3 do backend) |
+| `CODEGEN_MODO` | ❌ | `llm` | `llm`: a IA gera o código e ele é conferido; `modelo`: usa só o cálculo fixo (plano B) |
 
 As portas não vêm do `.env`: a HTTP é a do comando `uvicorn` (`--port`) e a gRPC é fixa em 50051 (`app/grpc_server.py`).
 
-## ❓ Como Executar
+---
 
+## 💻 Executando o Projeto
 ### Pré-requisitos
 
 - Python 3.12 (ou 3.13)
@@ -148,16 +162,7 @@ Dentro do container, `localhost` é o próprio container: por isso o `DATABASE_U
 
 Para subir banco, backend, Lana e front de uma vez, use o [repositório principal](https://github.com/codedontblow-org/domrock-camplana).
 
-## 🧪 Testes
-
-```bash
-pip install -r requirements-dev.txt
-AI_PROVIDER=GEMINI AI_MODEL=modelo-de-teste GEMINI_API_KEY=chave-de-teste python -m pytest -q
-```
-
-- Os testes usam fakes (`tests/fakes.py`): não chamam a LLM nem o banco. Mesmo assim, `app/core/config.py` exige `AI_PROVIDER`, `AI_MODEL` e uma chave ao ser importado; valores fictícios bastam (ou o seu `.env`).
-- O teste do executor real do código gerado usa limites de recursos do Linux; no Windows, rode pelo WSL ou pelo Docker.
-- O CI (`.github/workflows/ci.yml`) roda os testes e o build da imagem Docker a cada push e PR para `main` e `develop`.
+---
 
 ## 🛡️ Segurança
 
@@ -182,9 +187,32 @@ python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. app/proto/ia
 
 Depois, copie o `.proto` para o backend; o build do backend gera o código Java.
 
+---
+
+## 🧪 Testes
+
+```bash
+pip install -r requirements-dev.txt
+AI_PROVIDER=GEMINI AI_MODEL=modelo-de-teste GEMINI_API_KEY=chave-de-teste python -m pytest -q
+```
+
+- Os testes usam fakes (`tests/fakes.py`): não chamam a LLM nem o banco. Mesmo assim, `app/core/config.py` exige `AI_PROVIDER`, `AI_MODEL` e uma chave ao ser importado; valores fictícios bastam (ou o seu `.env`).
+- O teste do executor real do código gerado usa limites de recursos do Linux; no Windows, rode pelo WSL ou pelo Docker.
+- O CI (`.github/workflows/ci.yml`) roda os testes e o build da imagem Docker a cada push e PR para `main` e `develop`.
+  
+---
+
 ## ⚠️ Limitações conhecidas
 
 - O histórico da conversa fica só na memória da Lana (`InMemorySaver`, por `chat_id`): reiniciar a Lana apaga as conversas.
 - Pelo gRPC, a resposta leva só o texto. Os campos `regra_json` e `events_json` existem no `.proto`, mas ainda não são preenchidos, e a ficha enviada pelo backend é ignorada. Pelo HTTP `/agent/invoke`, a ficha e os eventos vêm completos.
 - Os guardrails só valem no gRPC; o `/agent/invoke` sempre chama a LLM.
 - A comissão atual (baseline) aplica só as regras gerais da especificação (5a e 5b): ainda sem proporcional de admissão e demissão, férias e afastamentos.
+
+---
+
+## ⚖️ Licença
+
+Este projeto está sob a licença especificada no arquivo [LICENSE](LICENSE).
+
+> 💣 Code Don't Blow - Onde cortamos o pavio antes dos problemas EXPLODIREM!
