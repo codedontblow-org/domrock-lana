@@ -4,6 +4,7 @@ from datetime import date
 import pandas as pd
 
 from app.simulacao.bases import BasesSimulacao
+from app.simulacao.vigencia import CampanhaContexto
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
 from app.tools.code_tool.gerador import GeradorCodigoModelo
 from app.tools.regra_tool.dtos import ParametrosSimulacao
@@ -28,9 +29,9 @@ VENDAS = pd.DataFrame({
     "cod_cargo": ["100", "100", "150", "100"],
 })
 COMISSOES = pd.DataFrame({
-    "cod_marca": ["30", "30", "10"],
-    "cod_cargo": ["100", "150", "100"],
-    "pct_comiss": [2.0, 1.0, 3.0],
+    "cod_marca": ["30", "30", "10", "10", "10", "10", "30", "30"],
+    "cod_cargo": ["100", "150", "100", "150", "200", "300", "200", "300"],
+    "pct_comiss": [2.0, 1.0, 3.0, 1.0, 2.0, 2.0, 2.0, 2.0],
 })
 
 
@@ -55,6 +56,16 @@ class FakeFonteBases:
     def carregar(self, competencias: list[str]) -> BasesSimulacao:
         self.competencias_pedidas.append(competencias)
         return self.bases
+
+
+class FakeCatalogoEspecificacao:
+    """Catálogo da especificação em memória, no lugar do arquivo (e da tabela do A6-77)."""
+
+    def __init__(self, campanhas: list[CampanhaContexto]) -> None:
+        self._campanhas = campanhas
+
+    def campanhas(self) -> list[CampanhaContexto]:
+        return list(self._campanhas)
 
 
 class FakeGeradorSequencial:

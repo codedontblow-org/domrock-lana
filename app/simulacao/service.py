@@ -7,9 +7,12 @@ import pandas as pd
 
 from app.simulacao.assercoes import AssercaoViolada, conferir_contra_referencia, conferir_resultado
 from app.simulacao.bases import BasesSimulacao, FonteBases, competencias_do_periodo
-from app.simulacao.baseline import calcular_baseline
+from app.simulacao.vigencia import (
+    CampanhaContexto, calcular_baseline_vigente, calcular_periodos, detectar_conflitos, fontes_da_vigente,
+)
 from app.simulacao.cenarios import SimularCusto, propor_cenarios
-from app.simulacao.dtos import ResultadoSimulacao
+from app.simulacao.dtos import ResultadoSimulacao, TrilhaSimulacao
+from app.simulacao.especificacao import CatalogoEspecificacao
 from app.simulacao.explicacao import Explicador
 from app.simulacao.resumo import (
     RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, maiores_lojas, medir_impacto, quebrar_por,
@@ -57,26 +60,38 @@ class SimuladorCampanha:
     `referencia` gera o código determinístico do mesmo contrato; quando existe, todo resultado
     da IA é conferido contra ele. O contrato da Sprint 1 tem forma fixa, então sempre há referência.
     `recalculo` gera o código determinístico que simula de novo os cenários alternativos.
+    `especificacao` traz as campanhas da especificação, que somam às do sistema na % vigente.
     """
 
     def __init__(
         self, fonte_bases: FonteBases, gerador: GeradorCodigo, runner: CodeRunner,
         explicador: Explicador, referencia: GeradorCodigo | None = None, max_tentativas: int = 2,
-        recalculo: GeradorCodigo | None = None,
+        recalculo: GeradorCodigo | None = None, especificacao: CatalogoEspecificacao | None = None,
     ) -> None:
         self._fonte_bases, self._gerador, self._runner = fonte_bases, gerador, runner
         self._explicador, self._referencia, self._max_tentativas = explicador, referencia, max_tentativas
         self._recalculo = recalculo or GeradorCodigoModelo()
+        self._especificacao = especificacao
 
-    def simular(self, regra: RegraCampanha) -> ResultadoSimulacao:
+    def simular(self, regra: RegraCampanha, campanhas: list[CampanhaContexto] | None = None) -> ResultadoSimulacao:
         parametros = ler_parametros(regra)
         competencias = competencias_do_periodo(parametros.data_inicio, parametros.data_fim)
         bases = self._carregar(competencias)
-        baseline = calcular_baseline(bases)
+        fontes = self._campanhas_da_especificacao() + list(campanhas or [])
+        periodos = calcular_periodos(parametros, bases.comissoes, fontes)
+        conflitos = detectar_conflitos(parametros, fontes)
+        baseline = calcular_baseline_vigente(bases, fontes)
         contexto = ContextoGeracao(parametros, competencias, _amostras(bases, baseline))
         conferencia = self._executar_referencia(contexto, bases, baseline)
         aprovada = self._gerar_e_executar(contexto, bases, baseline, conferencia)
-        return self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
+        resultado = self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
+        return resultado.model_copy(update={
+            "comissao_periodo": periodos, "conflitos": conflitos,
+            "trilha": resultado.trilha.model_copy(update={"campanhas": fontes_da_vigente(fontes, periodos)}),
+        })
+
+    def _campanhas_da_especificacao(self) -> list[CampanhaContexto]:
+        return self._especificacao.campanhas() if self._especificacao else []
 
     def _carregar(self, competencias: list[str]) -> BasesSimulacao:
         bases = self._fonte_bases.carregar(competencias)

@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.simulacao.vigencia import CampanhaDoSistema, ComissaoPeriodo, ConflitoCampanha, HistoricoComissao
 
 from app.tools.regra_tool.dtos import RegraCampanha
 
@@ -6,6 +8,8 @@ from app.tools.regra_tool.dtos import RegraCampanha
 class SimulacaoRequest(BaseModel):
     chat_id: str | None = None
     regra: RegraCampanha
+    # Contrato 4.3: só as versões salvas no sistema; as da especificação a Lana carrega sozinha.
+    campanhas: list[CampanhaDoSistema] = Field(default_factory=list)
 
 
 class TotaisSimulacao(BaseModel):
@@ -68,6 +72,12 @@ class CenarioAlternativo(BaseModel):
     cabe_no_orcamento: bool
 
 
+class TrilhaSimulacao(BaseModel):
+    """Trilha da simulação (2.2). O A6-74 preenche `campanhas`; modelo, premissas e passos são do A6-70."""
+
+    campanhas: list[HistoricoComissao] = Field(default_factory=list)
+
+
 class ResultadoSimulacao(BaseModel):
     rule_id: str
     competencias: list[str]
@@ -86,3 +96,6 @@ class ResultadoSimulacao(BaseModel):
     explicacao: str
     # Como o número foi validado (conferido com o cálculo determinístico, ou substituído por ele).
     observacao: str = ""
+    comissao_periodo: list[ComissaoPeriodo] = Field(default_factory=list)
+    conflitos: list[ConflitoCampanha] = Field(default_factory=list)
+    trilha: TrilhaSimulacao = Field(default_factory=TrilhaSimulacao)

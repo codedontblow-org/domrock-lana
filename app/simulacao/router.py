@@ -8,6 +8,7 @@ from app.core.db import get_connection
 from app.simulacao.bases import PostgresFonteBases
 from app.simulacao.baseline import BaselineError
 from app.simulacao.dtos import ResultadoSimulacao, SimulacaoRequest
+from app.simulacao.especificacao import ArquivoEspecificacao
 from app.simulacao.explicacao import ExplicadorLlm
 from app.simulacao.service import SimulacaoFalhouError, SimuladorCampanha
 from app.tools.code_tool.gerador import GeradorCodigo, GeradorCodigoLlm, GeradorCodigoModelo
@@ -28,6 +29,7 @@ def get_simulador() -> SimuladorCampanha:
         explicador=ExplicadorLlm(modelo),
         # Confere o código da IA contra o cálculo determinístico do mesmo contrato.
         referencia=GeradorCodigoModelo() if modo == "llm" else None,
+        especificacao=ArquivoEspecificacao(),
     )
 
 
@@ -42,7 +44,7 @@ def _escolher_gerador(modo: str) -> GeradorCodigo:
 @router.post("", response_model=ResultadoSimulacao)
 def simular(body: SimulacaoRequest) -> ResultadoSimulacao | JSONResponse:
     try:
-        return get_simulador().simular(body.regra)
+        return get_simulador().simular(body.regra, body.campanhas)
     except RegraInvalidaError as erro:
         return _falha("validacao", "Regra incompleta ou inválida", erros=erro.erros)
     except SimulacaoFalhouError as erro:
