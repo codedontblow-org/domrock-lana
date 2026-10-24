@@ -1,0 +1,130 @@
+[
+  {
+    "tipo": "SUBSTITUICAO",
+    "nome": "Especificação ago/25, item 2h",
+    "status": "APROVADA",
+    "justificativa": "Somente em ago/25, o % da marca 10 no cargo 300 sobe para 1,75%",
+    "data_inicio": "2025-08-01",
+    "data_fim": "2025-08-31",
+    "pct_novo": 1.75,
+    "marcas_alvo": [
+      "10"
+    ],
+    "cargos_alvo": [
+      "300"
+    ]
+  },
+  {
+    "tipo": "SUBSTITUICAO",
+    "nome": "Especificação set/25, item 3g",
+    "status": "APROVADA",
+    "justificativa": "Somente em set/25, a marca 10 usa a % da marca 20 em todos os cargos",
+    "data_inicio": "2025-09-01",
+    "data_fim": "2025-09-30",
+    "marca_referencia": "20",
+    "marcas_alvo": [
+      "10"
+    ],
+    "cargos_alvo": [
+      "100",
+      "150",
+      "200",
+      "300"
+    ]
+  },
+  {
+    "tipo": "ACRESCIMO",
+    "nome": "Especificação out/25, item 4g",
+    "status": "APROVADA",
+    "justificativa": "Marca 30: +0,5% em todas as vendas de out/25, exceto gerentes",
+    "data_inicio": "2025-10-01",
+    "data_fim": "2025-10-31",
+    "pct_acrescimo": 0.5,
+    "marcas_alvo": [
+      "30"
+    ],
+    "cargos_alvo": [
+      "100",
+      "200",
+      "300"
+    ]
+  },
+  {
+    "tipo": "ACRESCIMO",
+    "nome": "Especificação nov/25, item 5f",
+    "status": "APROVADA",
+    "justificativa": "Black Friday: +1% nas vendas de 24 a 30/11, todas as marcas, exceto gerentes",
+    "data_inicio": "2025-11-24",
+    "data_fim": "2025-11-30",
+    "pct_acrescimo": 1.0,
+    "marcas_alvo": [
+      "10",
+      "20",
+      "30",
+      "40",
+      "50",
+      "60"
+    ],
+    "cargos_alvo": [
+      "100",
+      "200",
+      "300"
+    ]
+  },
+  {
+    "tipo": "ACRESCIMO",
+    "nome": "Especificação nov/25, item 5g",
+    "status": "APROVADA",
+    "justificativa": "Gerentes: +0,5% nas vendas de 24 a 30/11 (Black Friday)",
+    "data_inicio": "2025-11-24",
+    "data_fim": "2025-11-30",
+    "pct_acrescimo": 0.5,
+    "marcas_alvo": [
+      "10",
+      "20",
+      "30",
+      "40",
+      "50",
+      "60"
+    ],
+    "cargos_alvo": [
+      "150"
+    ]
+  },
+  {
+    "tipo": "ACRESCIMO",
+    "nome": "Especificação dez/25, item 6f",
+    "status": "APROVADA",
+    "justificativa": "Marcas 40, 50 e 60: +1% em todas as vendas de dez/25, exceto gerentes",
+    "data_inicio": "2025-12-01",
+    "data_fim": "2025-12-31",
+    "pct_acrescimo": 1.0,
+    "marcas_alvo": [
+      "40",
+      "50",
+      "60"
+    ],
+    "cargos_alvo": [
+      "100",
+      "200",
+      "300"
+    ]
+  },
+  {
+    "tipo": "ACRESCIMO",
+    "nome": "Especificação dez/25, item 6g",
+    "status": "APROVADA",
+    "justificativa": "Marca 30: +0,5% em todas as vendas de dez/25, exceto gerentes",
+    "data_inicio": "2025-12-01",
+    "data_fim": "2025-12-31",
+    "pct_acrescimo": 0.5,
+    "marcas_alvo": [
+      "30"
+    ],
+    "cargos_alvo": [
+      "100",
+      "200",
+      "300"
+    ]
+  }
+]

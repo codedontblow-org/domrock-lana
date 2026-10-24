@@ -4,6 +4,7 @@ from datetime import date
 import pandas as pd
 
 from app.simulacao.bases import BasesSimulacao
+from app.simulacao.vigencia import CampanhaContexto
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
 from app.tools.code_tool.gerador import GeradorCodigoModelo
 from app.tools.regra_tool.dtos import ParametrosSimulacao
@@ -55,6 +56,16 @@ class FakeFonteBases:
     def carregar(self, competencias: list[str]) -> BasesSimulacao:
         self.competencias_pedidas.append(competencias)
         return self.bases
+
+
+class FakeCatalogoEspecificacao:
+    """Catálogo da especificação em memória, no lugar do arquivo (e da tabela do A6-77)."""
+
+    def __init__(self, campanhas: list[CampanhaContexto]) -> None:
+        self._campanhas = campanhas
+
+    def campanhas(self) -> list[CampanhaContexto]:
+        return list(self._campanhas)
 
 
 class FakeGeradorSequencial:
