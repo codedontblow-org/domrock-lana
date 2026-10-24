@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.simulacao.vigencia import CampanhaContexto, ComissaoPeriodo, ConflitoCampanha
 
 from app.tools.regra_tool.dtos import RegraCampanha
 
@@ -6,6 +8,7 @@ from app.tools.regra_tool.dtos import RegraCampanha
 class SimulacaoRequest(BaseModel):
     chat_id: str | None = None
     regra: RegraCampanha
+    campanhas: list[CampanhaContexto] = Field(default_factory=list)
 
 
 class TotaisSimulacao(BaseModel):
@@ -69,6 +72,9 @@ class CenarioAlternativo(BaseModel):
 
 
 class ResultadoSimulacao(BaseModel):
+    comissoes_periodo: list[ComissaoPeriodo] = Field(default_factory=list)
+    conflitos: list[ConflitoCampanha] = Field(default_factory=list)
+    trilha: dict = Field(default_factory=dict)
     rule_id: str
     competencias: list[str]
     totais: TotaisSimulacao

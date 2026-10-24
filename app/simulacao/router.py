@@ -42,7 +42,7 @@ def _escolher_gerador(modo: str) -> GeradorCodigo:
 @router.post("", response_model=ResultadoSimulacao)
 def simular(body: SimulacaoRequest) -> ResultadoSimulacao | JSONResponse:
     try:
-        return get_simulador().simular(body.regra)
+        return get_simulador().simular(body.regra, body.campanhas)
     except RegraInvalidaError as erro:
         return _falha("validacao", "Regra incompleta ou inválida", erros=erro.erros)
     except SimulacaoFalhouError as erro:

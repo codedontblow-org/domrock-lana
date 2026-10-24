@@ -7,7 +7,9 @@ import pandas as pd
 
 from app.simulacao.assercoes import AssercaoViolada, conferir_contra_referencia, conferir_resultado
 from app.simulacao.bases import BasesSimulacao, FonteBases, competencias_do_periodo
-from app.simulacao.baseline import calcular_baseline
+from app.simulacao.vigencia import (
+    CampanhaContexto, calcular_baseline_vigente, calcular_periodos, detectar_conflitos,
+)
 from app.simulacao.cenarios import SimularCusto, propor_cenarios
 from app.simulacao.dtos import ResultadoSimulacao
 from app.simulacao.explicacao import Explicador
@@ -68,15 +70,23 @@ class SimuladorCampanha:
         self._explicador, self._referencia, self._max_tentativas = explicador, referencia, max_tentativas
         self._recalculo = recalculo or GeradorCodigoModelo()
 
-    def simular(self, regra: RegraCampanha) -> ResultadoSimulacao:
+    def simular(self, regra: RegraCampanha, campanhas: list[CampanhaContexto] | None = None) -> ResultadoSimulacao:
         parametros = ler_parametros(regra)
         competencias = competencias_do_periodo(parametros.data_inicio, parametros.data_fim)
         bases = self._carregar(competencias)
-        baseline = calcular_baseline(bases)
+        campanhas = campanhas or []
+        periodos = calcular_periodos(parametros, bases.comissoes, campanhas)
+        conflitos = detectar_conflitos(parametros, campanhas)
+        baseline = calcular_baseline_vigente(bases, campanhas)
         contexto = ContextoGeracao(parametros, competencias, _amostras(bases, baseline))
         conferencia = self._executar_referencia(contexto, bases, baseline)
         aprovada = self._gerar_e_executar(contexto, bases, baseline, conferencia)
-        return self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
+        resultado = self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
+        ids_usados = {h.id for trecho in periodos for h in trecho.historico if h.aplicada}
+        return resultado.model_copy(update={
+            "comissoes_periodo": periodos, "conflitos": conflitos,
+            "trilha": {"campanhas": [c.model_dump(mode="json") for c in campanhas if c.id in ids_usados]},
+        })
 
     def _carregar(self, competencias: list[str]) -> BasesSimulacao:
         bases = self._fonte_bases.carregar(competencias)
