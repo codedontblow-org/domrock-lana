@@ -18,4 +18,4 @@ def consultar_banco(pergunta: str) -> dict:
         pergunta: Pergunta clara e detalhada sobre o que deseja buscar.
     """
     body = QueryRequestBody(pergunta=pergunta)
-    return executar(body).model_dump()
+    return executar(body).model_dump(mode="json")

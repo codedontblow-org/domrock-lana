@@ -1,3 +1,5 @@
+import re
+from typing import Any
 import sqlglot
 from sqlglot import exp
 
@@ -84,3 +86,35 @@ def _limitar_linhas(arvore_sql: exp.Select) -> exp.Select:
     if isinstance(valor, exp.Literal) and valor.is_int and int(valor.this) <= LIMITE_LINHAS:
         return arvore_sql
     return arvore_sql.limit(LIMITE_LINHAS)
+
+
+def extrair_tabelas(sql: str | None) -> list[str]:
+    """Extrai os nomes das tabelas consultadas na query SQL (sem CTEs)."""
+    return extrair_metadados_sql(sql).get("tabelas", [])
+
+
+def extrair_metadados_sql(sql: str | None) -> dict[str, Any]:
+    """Extrai tabelas, filtros (WHERE) e competências encontradas no SQL."""
+    if not sql:
+        return {"tabelas": [], "filtros": None, "competencias": []}
+    try:
+        comandos = [c for c in sqlglot.parse(sql, dialect="postgres") if c is not None]
+        if not comandos:
+            return {"tabelas": [], "filtros": None, "competencias": []}
+        arvore = comandos[0]
+        cte_names = {cte.alias_or_name.lower() for cte in arvore.find_all(exp.CTE)}
+        tabelas = {t.name.lower() for t in arvore.find_all(exp.Table)}
+        tabelas_limpas = sorted(list(tabelas - cte_names))
+
+        where = arvore.find(exp.Where)
+        filtros = where.this.sql(dialect="postgres") if where else None
+
+        competencias = sorted(list(set(re.findall(r"\b(202\d-(?:0[1-9]|1[0-2]))", sql))))
+
+        return {
+            "tabelas": tabelas_limpas,
+            "filtros": filtros,
+            "competencias": competencias,
+        }
+    except Exception:
+        return {"tabelas": [], "filtros": None, "competencias": []}

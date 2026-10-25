@@ -3,6 +3,16 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.tools.dtos import ToolResultBase
+
+
+class RegraToolResult(ToolResultBase):
+    """Retorno unificado da ferramenta de registro de parâmetros de regra."""
+
+    faltantes: list[str] = []
+    regra: dict[str, Any] = {}
+
+
 
 class OpcaoParametro(BaseModel):
     id: str

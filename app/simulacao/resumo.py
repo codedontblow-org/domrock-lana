@@ -14,6 +14,31 @@ RESSALVAS = [
 ]
 
 
+def gerar_premissas(parametros: ParametrosSimulacao) -> list[str]:
+    """Premissas da simulação baseadas nos parâmetros e nas ressalvas metodológicas."""
+    premissas = []
+
+    if "150" not in parametros.cargos_alvo:
+        premissas.append("Gerentes (150) excluídos")
+    else:
+        premissas.append("Gerentes (150) incluídos")
+
+    premissas.append(f"Cargos elegíveis: {', '.join(parametros.cargos_alvo)}")
+
+    if "ALL" in parametros.marcas_alvo:
+        premissas.append("Todas as marcas incluídas")
+    else:
+        premissas.append(f"Marcas incluídas: {', '.join(parametros.marcas_alvo)}")
+
+    premissas.append(
+        f"Período: de {parametros.data_inicio.strftime('%d/%m/%Y')} a {parametros.data_fim.strftime('%d/%m/%Y')}"
+    )
+    premissas.append(f"Acréscimo de comissão: +{parametros.pct_acrescimo}%")
+    premissas.extend(RESSALVAS)
+
+    return premissas
+
+
 def calcular_totais(comparacao: pd.DataFrame) -> TotaisSimulacao:
     baseline = round(float(comparacao["comissao"].sum()), 2)
     simulado = round(float(comparacao["comissao_simulada"].sum()), 2)

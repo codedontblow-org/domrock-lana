@@ -11,11 +11,13 @@ from app.simulacao.vigencia import (
     CampanhaContexto, calcular_baseline_vigente, calcular_periodos, detectar_conflitos, fontes_da_vigente,
 )
 from app.simulacao.cenarios import SimularCusto, propor_cenarios
-from app.simulacao.dtos import ResultadoSimulacao, TrilhaSimulacao
+from app.simulacao.dtos import (
+    PassoSimulacao, ResultadoSimulacao, TotaisSimulacao, TrilhaSimulacao, VereditoOrcamento,
+)
 from app.simulacao.especificacao import CatalogoEspecificacao
 from app.simulacao.explicacao import Explicador
 from app.simulacao.resumo import (
-    RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, maiores_lojas, medir_impacto, quebrar_por,
+    RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, gerar_premissas, maiores_lojas, medir_impacto, quebrar_por,
 )
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
 from app.tools.code_tool.gerador import GeradorCodigo, GeradorCodigoModelo
@@ -146,17 +148,111 @@ class SimuladorCampanha:
         totais = calcular_totais(comparacao)
         orcamento = avaliar_orcamento(totais, parametros.orcamento_limite)
         por_marca = quebrar_por(comparacao, "cod_marca")
+        meta = avaliar_meta(bases.vendas, parametros)
+        trilha = self._montar_trilha(contexto, bases, baseline, aprovada, totais, orcamento, meta.atingida)
         resultado = ResultadoSimulacao(
             rule_id=rule_id, competencias=contexto.competencias, totais=totais,
             por_marca=por_marca, por_cargo=quebrar_por(comparacao, "cod_cargo"),
-            orcamento=orcamento, meta=avaliar_meta(bases.vendas, parametros),
+            orcamento=orcamento, meta=meta,
             impacto=medir_impacto(comparacao), maiores_lojas=maiores_lojas(comparacao),
             cenarios=propor_cenarios(parametros, orcamento, por_marca, self._custo_com(contexto, bases, baseline)),
             ressalvas=RESSALVAS, codigo=aprovada.codigo.fonte, origem_codigo=aprovada.codigo.origem,
             tentativas=aprovada.numero, explicacao="", observacao=aprovada.observacao,
+            trilha=trilha,
         )
         resumo = resultado.model_dump(include=CAMPOS_EXPLICACAO)
         return resultado.model_copy(update={"explicacao": self._explicador.explicar(resumo)})
+
+    def _montar_trilha(
+        self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame,
+        aprovada: TentativaAprovada, totais: TotaisSimulacao, orcamento: VereditoOrcamento,
+        meta_atingida: bool,
+    ) -> TrilhaSimulacao:
+        from app.core.config import get_settings
+        modelo_nome = get_settings().AI_MODEL if aprovada.codigo.origem in ("llm", "fake") else aprovada.codigo.origem
+
+        conferencias = [
+            "Colunas obrigatórias presentes (matricula, competencia, comissao)",
+            "Uma linha por matrícula/competência sem duplicatas",
+            "Alinhamento com matrículas do baseline",
+            "Comissões não-negativas e valores finitos",
+            "Consistência entre soma das contribuições e delta da comissão",
+            "Escopo restrito a marcas, cargos e período da campanha",
+        ]
+        if CONFERIDO in aprovada.observacao:
+            conferencias.append("Conferência linha a linha contra cálculo determinístico de referência")
+
+        validacao_ref = (
+            "conferido com o cálculo determinístico"
+            if CONFERIDO in aprovada.observacao
+            else ("substituído pela referência" if USOU_REFERENCIA in aprovada.observacao else "aprovado")
+        )
+
+        passos = [
+            PassoSimulacao(
+                passo=1,
+                nome="Carga das bases RH, vendas e comissões",
+                detalhes={
+                    "competencias": contexto.competencias,
+                    "linhas_rh": len(bases.rh),
+                    "linhas_vendas": len(bases.vendas),
+                    "linhas_comissoes": len(bases.comissoes),
+                },
+            ),
+            PassoSimulacao(
+                passo=2,
+                nome="Comissão atual",
+                detalhes={
+                    "matriculas": int(baseline["matricula"].nunique()),
+                    "total": round(float(baseline["comissao"].sum()), 2),
+                },
+            ),
+            PassoSimulacao(
+                passo=3,
+                nome="Geração do código",
+                detalhes={
+                    "modelo": modelo_nome,
+                    "tentativas": aprovada.numero,
+                    "validacao": validacao_ref,
+                    "observacao": aprovada.observacao,
+                },
+            ),
+            PassoSimulacao(
+                passo=4,
+                nome="Execução no sandbox",
+                detalhes={
+                    "status": "sucesso",
+                    "linhas": len(aprovada.comparacao),
+                    "origem_codigo": aprovada.codigo.origem,
+                },
+            ),
+            PassoSimulacao(
+                passo=5,
+                nome="Conferências que passaram",
+                detalhes={
+                    "conferencias": conferencias,
+                },
+            ),
+            PassoSimulacao(
+                passo=6,
+                nome="Resumo",
+                detalhes={
+                    "baseline": totais.baseline,
+                    "simulado": totais.simulado,
+                    "diferenca": totais.diferenca,
+                    "diferenca_pct": totais.diferenca_pct,
+                    "cabe_no_orcamento": orcamento.cabe_no_orcamento,
+                    "meta_atingida": meta_atingida,
+                },
+            ),
+        ]
+
+        return TrilhaSimulacao(
+            modelo=modelo_nome,
+            tentativas=aprovada.numero,
+            premissas=gerar_premissas(contexto.parametros),
+            passos=passos,
+        )
 
     def _custo_com(self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame) -> SimularCusto:
         """Simula de novo, com o código determinístico, a mesma regra com outros parâmetros."""

@@ -17,6 +17,14 @@ SYSTEM_RULES = [
         "'impulsionar' e 'otimizar'. Comece pelo que o usuário precisa saber ou fazer."
     ),
     SystemMessage(
+        "Antes de fazer uma chamada de ferramenta, você deve gerar um texto curto de reasoning que "
+        "evidencie para o usuário o que você está fazendo. O reasoning deve começar com um verbo no gerúndio."
+        "Ao fazer uma busca no banco de dados, traduza todos os parâmetros que você vai usar para a "
+        "constulta para um texto corrido (Por exemplo: Consultando os vendedores de loja com maior % vigente)."
+        "Nunca exponha o nome da ferramenta que está sendo usada, sempre se refira a seus processos internos "
+        "de maneira indireta, considerando que o usuário final irá ler essa descrição."
+    ),
+    SystemMessage(
         "Fluxo de uma campanha: sempre que o usuário descrever ou alterar uma regra de campanha, "
         "chame `registrar_parametros_regra` com o que ele disse. Se houver `faltantes`, peça cada um "
         "ao usuário, sem sugerir nem assumir valores. Os parâmetros aparecem num painel onde o usuário "

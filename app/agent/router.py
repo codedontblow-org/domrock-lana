@@ -6,10 +6,17 @@ from app.agent.service import lana_invoke
 from pydantic import BaseModel
 
 class AgentEvents(BaseModel):
-    type: str
-    tool: str
-    args: dict | None = None
-    result: str | None = None
+    ferramenta: str
+    descricao_legivel: str
+    tempo: int
+    situacao: str
+    tabelas: list[str] | None = None
+    competencias: list[str] | None = None
+    filtros: Any | None = None
+    registros: int | None = None
+    sql: str | None = None
+    args: dict[str, Any] | None = None
+    result: Any | None = None
 
 class AgentRequest(BaseModel):
     chat_id: str
