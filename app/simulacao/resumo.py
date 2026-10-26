@@ -1,7 +1,9 @@
 """Números finais da simulação, todos calculados aqui (nenhum vem da LLM)."""
 import pandas as pd
 
-from app.simulacao.dtos import AtingimentoMeta, ImpactoPessoas, QuebraDimensao, TotaisSimulacao, VereditoOrcamento
+from app.simulacao.dtos import (
+    AtingimentoMeta, ImpactoPessoas, QuebraDimensao, RetornoCampanha, TotaisSimulacao, VereditoOrcamento,
+)
 from app.tools.regra_tool.dtos import ParametrosSimulacao
 
 LIMITE_LOJAS = 5
@@ -61,7 +63,10 @@ def quebrar_por(comparacao: pd.DataFrame, coluna: str) -> list[QuebraDimensao]:
     ]
 
 
-def avaliar_orcamento(totais: TotaisSimulacao, orcamento_limite: float) -> VereditoOrcamento:
+def avaliar_orcamento(totais: TotaisSimulacao, orcamento_limite: float | None) -> VereditoOrcamento | None:
+    """Sem orçamento na ficha, não há veredito (A6-72). Ex.: avaliar_orcamento(totais, None) -> None"""
+    if orcamento_limite is None:
+        return None
     folga = round(orcamento_limite - totais.diferenca, 2)
     return VereditoOrcamento(
         orcamento_limite=orcamento_limite, custo_incremental=totais.diferenca,
@@ -85,6 +90,19 @@ def avaliar_meta(vendas: pd.DataFrame, parametros: ParametrosSimulacao) -> Ating
     return AtingimentoMeta(
         meta_vendas=parametros.meta_vendas, vendas_periodo=realizado,
         pct_atingimento=pct, atingida=realizado >= parametros.meta_vendas,
+        diferenca=round(realizado - parametros.meta_vendas, 2),
+    )
+
+
+def avaliar_retorno(totais: TotaisSimulacao, meta: AtingimentoMeta) -> RetornoCampanha:
+    """Conta provisória do A6-72, só com dados da base (sem margem nem venda incremental).
+
+    Ex.: custo 23.736,10, venda 2.406.125,93 e meta 2.000.000 -> custo_pct_venda 0.99, custo_por_real_acima_meta 0.06
+    """
+    custo, vendas = totais.diferenca, meta.vendas_periodo
+    return RetornoCampanha(
+        custo_pct_venda=round(custo / vendas * 100, 2) if vendas > 0 else None,
+        custo_por_real_acima_meta=round(custo / meta.diferenca, 2) if meta.diferenca > 0 else None,
     )
 
 

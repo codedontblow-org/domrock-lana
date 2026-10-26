@@ -18,7 +18,7 @@ from app.simulacao.texto_humano import (
     cliches_encontrados, fatos_da_simulacao, remover_frases_com_cliche, resumo_deterministico,
 )
 
-TEXTO_PADRAO = "Simulação concluída. Veja os totais e o veredito de orçamento abaixo."
+TEXTO_PADRAO = "Simulação concluída. Veja a meta, o custo e o retorno abaixo."
 MINIMO_CARACTERES = 120
 
 PROMPT_EXPLICACAO = """Você é Lana, analista de campanhas de vendas, comentando uma simulação com
@@ -28,8 +28,10 @@ Fatos (use só estes números, exatamente como estão escritos):
 {fatos}
 
 Como escrever:
-- A primeira frase já dá a conclusão: cabe ou não no orçamento, com o valor.
-- Depois, em 2 ou 3 frases, diga o que mais pesa no custo e sugira UM dos cenários calculados
+- Siga a ordem dos fatos: meta, custo extra da comissão, retorno e, por último, orçamento.
+- Se os fatos não falam de orçamento, não fale de orçamento: ele não foi informado.
+- O retorno é uma conta provisória: diga isso ao citá-lo.
+- Depois, em 1 ou 2 frases, diga o que mais pesa no custo e sugira UM dos cenários calculados
   que estão nos fatos, com o percentual e o custo dele. Nunca invente outro percentual ou valor.
 - Vendas do período são histórico: não diga que a meta "foi batida" nem "vai ser atingida".
 - Frases curtas e diretas, em português do Brasil, sem Markdown de título e sem listas.
@@ -40,9 +42,10 @@ Como escrever:
   potencializar, jornada, excelente, incrível, folga negativa, emojis.
 
 Exemplo do tom certo (números de outra campanha, não copie):
-Estoura o orçamento de R$ 10.000,00 em R$ 2.140,00. Quase todo o custo vem da marca Preto, que
-concentra 81% do acréscimo, puxado pelos vendedores de loja. Com acréscimo de 0,82% a campanha
-custa R$ 9.980,00 e cabe; outra saída é tirar a marca Preto, que baixa o custo para R$ 2.300,00.
+No histórico, as vendas do período somaram R$ 1.250.000,00, 104% da meta de R$ 1.200.000,00.
+O acréscimo custa R$ 12.140,00 a mais em comissão, 0,97% da venda do período pela conta
+provisória de retorno. Quase todo o custo vem da marca Preto, puxado pelos vendedores de loja;
+sem ela, a campanha custa R$ 2.300,00.
 {correcao}"""
 
 CORRECAO = "\nSua versão anterior usou expressões proibidas ({cliches}). Reescreva sem elas."

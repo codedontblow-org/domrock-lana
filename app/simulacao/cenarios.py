@@ -19,13 +19,16 @@ PASSO_PCT = 0.01
 
 
 def propor_cenarios(
-    parametros: ParametrosSimulacao, orcamento: VereditoOrcamento,
+    parametros: ParametrosSimulacao, custo_atual: float, orcamento: VereditoOrcamento | None,
     por_marca: list[QuebraDimensao], simular_custo: SimularCusto,
 ) -> list[CenarioAlternativo]:
-    """Ex.: propor_cenarios(parametros, orcamento, por_marca, simular_custo)[0].pct_acrescimo -> 1.26"""
+    """Ex.: propor_cenarios(parametros, 23736.14, orcamento, por_marca, simular_custo)[0].pct_acrescimo -> 1.26
+
+    Sem orçamento, só "Sem a marca X": o maior % que cabe não existe sem limite (A6-72).
+    """
     cenarios = [
-        _cenario_percentual(parametros, orcamento, simular_custo),
-        _cenario_sem_marca(parametros, orcamento, por_marca),
+        _cenario_percentual(parametros, orcamento, simular_custo) if orcamento else None,
+        _cenario_sem_marca(parametros, custo_atual, orcamento, por_marca),
     ]
     return [cenario for cenario in cenarios if cenario is not None]
 
@@ -40,7 +43,10 @@ def _cenario_percentual(
     for candidato in (pct, round(pct - PASSO_PCT, 2)):
         custo = simular_custo(parametros.model_copy(update={"pct_acrescimo": candidato}))
         if candidato > 0 and custo is not None and custo <= orcamento.orcamento_limite:
-            return _montar("ajustar_acrescimo", _titulo_percentual(orcamento), candidato, parametros.marcas_alvo, custo, orcamento)
+            return _montar(
+                "ajustar_acrescimo", _titulo_percentual(orcamento), candidato, parametros.marcas_alvo,
+                custo, orcamento.custo_incremental, orcamento,
+            )
     return None
 
 
@@ -62,23 +68,25 @@ def _titulo_percentual(orcamento: VereditoOrcamento) -> str:
 
 
 def _cenario_sem_marca(
-    parametros: ParametrosSimulacao, orcamento: VereditoOrcamento, por_marca: list[QuebraDimensao],
+    parametros: ParametrosSimulacao, custo_atual: float, orcamento: VereditoOrcamento | None,
+    por_marca: list[QuebraDimensao],
 ) -> CenarioAlternativo | None:
     afetadas = [marca for marca in por_marca if marca.diferenca > 0]
     if len(afetadas) < 2:
         return None
     maior = max(afetadas, key=lambda marca: marca.diferenca)
     marcas = [codigo for codigo in parametros.marcas_alvo if codigo != maior.codigo]
-    custo = round(orcamento.custo_incremental - maior.diferenca, 2)
+    custo = round(custo_atual - maior.diferenca, 2)
     titulo = f"Sem a marca {NOMES_MARCA.get(maior.codigo, maior.codigo)}"
-    return _montar("sem_marca", titulo, parametros.pct_acrescimo, marcas, custo, orcamento)
+    return _montar("sem_marca", titulo, parametros.pct_acrescimo, marcas, custo, custo_atual, orcamento)
 
 
 def _montar(
-    tipo: str, titulo: str, pct: float, marcas: list[str], custo: float, orcamento: VereditoOrcamento,
+    tipo: str, titulo: str, pct: float, marcas: list[str], custo: float, custo_atual: float,
+    orcamento: VereditoOrcamento | None,
 ) -> CenarioAlternativo:
     return CenarioAlternativo(
         tipo=tipo, titulo=titulo, pct_acrescimo=pct, marcas_alvo=marcas, custo_incremental=custo,
-        economia=round(orcamento.custo_incremental - custo, 2),
-        cabe_no_orcamento=custo <= orcamento.orcamento_limite,
+        economia=round(custo_atual - custo, 2),
+        cabe_no_orcamento=custo <= orcamento.orcamento_limite if orcamento else None,
     )

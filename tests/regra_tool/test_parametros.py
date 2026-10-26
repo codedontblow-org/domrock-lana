@@ -15,10 +15,23 @@ VALORES_BLACK_FRIDAY = {
 def test_montar_regra_lista_faltantes_sem_assumir_padrao() -> None:
     regra = montar_regra({"pct_acrescimo": 1.0}, "+1% na black friday", "draft-1")
 
-    assert regra.faltantes == [
-        "periodo", "marcas_alvo", "cargos_alvo", "meta_vendas", "orcamento_limite",
-    ]
+    assert regra.faltantes == ["periodo", "marcas_alvo", "cargos_alvo", "meta_vendas"]
     assert [p.value for p in regra.parametros if p.key == "meta_vendas"] == [None]
+
+
+def test_orcamento_e_opcional_e_nao_entra_nos_faltantes() -> None:
+    # A6-72 (ADR-004): orçamento é consequência, não parâmetro obrigatório.
+    regra = montar_regra({**VALORES_BLACK_FRIDAY, "orcamento_limite": None}, "cmd", "draft-1")
+
+    orcamento = next(p for p in regra.parametros if p.key == "orcamento_limite")
+    assert regra.faltantes == [] and orcamento.required is False and orcamento.value is None
+    assert all(p.required for p in regra.parametros if p.key != "orcamento_limite")
+
+
+def test_ler_parametros_sem_orcamento_devolve_none() -> None:
+    regra = montar_regra({**VALORES_BLACK_FRIDAY, "orcamento_limite": None}, "cmd", "draft-1")
+
+    assert ler_parametros(regra).orcamento_limite is None
 
 
 def test_montar_regra_preenche_rotulos_e_opcoes_do_catalogo() -> None:
@@ -45,7 +58,8 @@ def test_ler_parametros_expande_todas_as_marcas() -> None:
         ("pct_acrescimo", -1, "maior que zero"),
         ("pct_acrescimo", "abc", "esperado número"),
         ("marcas_alvo", ["99"], "['99']"),
-        ("orcamento_limite", None, "obrigatório"),
+        ("meta_vendas", None, "obrigatório"),
+        ("orcamento_limite", -5, "maior que zero"),
         ("periodo", {"data_inicio": "2025-11-24", "data_fim": None}, "YYYY-MM-DD"),
         ("cargos_alvo", {"id": "100"}, "esperado lista"),
     ],

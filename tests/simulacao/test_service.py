@@ -35,6 +35,18 @@ def test_simular_black_friday_calcula_totais_orcamento_e_meta() -> None:
     assert resultado.ressalvas
 
 
+def test_simular_sem_orcamento_traz_meta_retorno_e_nenhum_veredito() -> None:
+    gerador = FakeGeradorSequencial([fonte_modelo(parametros_black_friday())])
+    regra = montar_regra({**VALORES, "orcamento_limite": None}, "bf", "draft-1")
+
+    resultado = _simulador(gerador).simular(regra)
+
+    # Custo 13,00 sobre a venda de 1.300,00 (300,00 acima da meta de 1.000,00).
+    assert resultado.orcamento is None and resultado.meta.diferenca == 300.0
+    assert resultado.retorno.custo_pct_venda == 1.0 and resultado.retorno.custo_por_real_acima_meta == 0.04
+    assert all(c.tipo != "ajustar_acrescimo" for c in resultado.cenarios)
+
+
 def test_simular_propoe_percentual_que_cabe_simulado_de_novo() -> None:
     gerador = FakeGeradorSequencial([fonte_modelo(parametros_black_friday())])
     regra = montar_regra({**VALORES, "orcamento_limite": 10.0}, "bf", "draft-1")
@@ -70,7 +82,7 @@ def test_simular_recusa_regra_incompleta_antes_de_gerar_codigo() -> None:
     gerador = FakeGeradorSequencial([CODIGO_QUEBRADO])
 
     with pytest.raises(RegraInvalidaError):
-        _simulador(gerador).simular(montar_regra({**VALORES, "orcamento_limite": None}, "bf", "d"))
+        _simulador(gerador).simular(montar_regra({**VALORES, "meta_vendas": None}, "bf", "d"))
 
     assert gerador.erros_recebidos == []
 

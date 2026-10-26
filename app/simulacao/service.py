@@ -16,7 +16,8 @@ from app.simulacao.dtos import ResultadoSimulacao
 from app.simulacao.especificacao import CatalogoEspecificacao
 from app.simulacao.explicacao import Explicador
 from app.simulacao.resumo import (
-    RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, maiores_lojas, medir_impacto, quebrar_por,
+    RESSALVAS, avaliar_meta, avaliar_orcamento, avaliar_retorno, calcular_totais, maiores_lojas, medir_impacto,
+    quebrar_por,
 )
 from app.simulacao.trilha import Cronometro, ExecucaoSimulada, montar_trilha_simulacao
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
@@ -26,7 +27,9 @@ from app.tools.regra_tool.dtos import ParametrosSimulacao, RegraCampanha
 from app.tools.regra_tool.parametros import ler_parametros
 
 LINHAS_AMOSTRA = 10
-CAMPOS_EXPLICACAO = {"totais", "por_marca", "por_cargo", "orcamento", "meta", "impacto", "maiores_lojas", "cenarios"}
+CAMPOS_EXPLICACAO = {
+    "totais", "por_marca", "por_cargo", "orcamento", "meta", "retorno", "impacto", "maiores_lojas", "cenarios",
+}
 
 
 class SimulacaoFalhouError(RuntimeError):
@@ -161,12 +164,13 @@ class SimuladorCampanha:
         orcamento = avaliar_orcamento(totais, parametros.orcamento_limite)
         por_marca = quebrar_por(comparacao, "cod_marca")
         meta = avaliar_meta(bases.vendas, parametros)
+        custo_com = self._custo_com(contexto, bases, baseline)
         resultado = ResultadoSimulacao(
             rule_id=rule_id, competencias=contexto.competencias, totais=totais,
             por_marca=por_marca, por_cargo=quebrar_por(comparacao, "cod_cargo"),
-            orcamento=orcamento, meta=meta,
+            orcamento=orcamento, meta=meta, retorno=avaliar_retorno(totais, meta),
             impacto=medir_impacto(comparacao), maiores_lojas=maiores_lojas(comparacao),
-            cenarios=propor_cenarios(parametros, orcamento, por_marca, self._custo_com(contexto, bases, baseline)),
+            cenarios=propor_cenarios(parametros, totais.diferenca, orcamento, por_marca, custo_com),
             ressalvas=RESSALVAS, codigo=aprovada.codigo.fonte, origem_codigo=aprovada.codigo.origem,
             tentativas=aprovada.numero, explicacao="", observacao=aprovada.observacao,
         )

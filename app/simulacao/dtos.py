@@ -46,6 +46,20 @@ class AtingimentoMeta(BaseModel):
     vendas_periodo: float
     pct_atingimento: float
     atingida: bool
+    # Venda do período − meta (A6-72): positivo = acima da meta, negativo = abaixo.
+    diferenca: float
+
+
+class RetornoCampanha(BaseModel):
+    """Retorno da campanha pela conta provisória do A6-72 (ADR-004), até a Dom Rock definir "retorno".
+
+    `custo_pct_venda`: custo adicional ÷ venda do período × 100; None sem venda no período.
+    `custo_por_real_acima_meta`: custo adicional ÷ (venda − meta); None se a venda não passou da meta.
+    """
+
+    provisorio: bool = True
+    custo_pct_venda: float | None
+    custo_por_real_acima_meta: float | None
 
 
 class ImpactoPessoas(BaseModel):
@@ -62,6 +76,7 @@ class CenarioAlternativo(BaseModel):
 
     `tipo`: "ajustar_acrescimo" (maior % que cabe no orçamento) ou "sem_marca" (tira a marca
     que mais pesa). `economia` é o custo atual menos o do cenário (negativo = custa mais).
+    `cabe_no_orcamento` é None quando a ficha não tem orçamento (A6-72).
     """
 
     tipo: str
@@ -70,7 +85,7 @@ class CenarioAlternativo(BaseModel):
     marcas_alvo: list[str]
     custo_incremental: float
     economia: float
-    cabe_no_orcamento: bool
+    cabe_no_orcamento: bool | None
 
 
 class TrilhaSimulacao(BaseModel):
@@ -89,8 +104,10 @@ class ResultadoSimulacao(BaseModel):
     totais: TotaisSimulacao
     por_marca: list[QuebraDimensao]
     por_cargo: list[QuebraDimensao]
-    orcamento: VereditoOrcamento
+    # None quando a ficha não tem orçamento (A6-72: orçamento é opcional).
+    orcamento: VereditoOrcamento | None
     meta: AtingimentoMeta
+    retorno: RetornoCampanha
     impacto: ImpactoPessoas
     maiores_lojas: list[QuebraDimensao]
     cenarios: list[CenarioAlternativo]

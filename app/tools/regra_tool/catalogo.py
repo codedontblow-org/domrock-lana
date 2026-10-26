@@ -38,6 +38,9 @@ METADADOS: dict[str, tuple[str, str, str]] = {
     "orcamento_limite": ("Orçamento Máximo de Incentivo (R$)", "currency", "CONSTRAINT"),
 }
 
+# Orçamento é consequência, não parâmetro obrigatório (A6-72, ADR-004): a Lana não o pergunta.
+OPCIONAIS: frozenset[str] = frozenset({"orcamento_limite"})
+
 OPCOES_POR_CHAVE: dict[str, list[OpcaoParametro]] = {
     "marcas_alvo": OPCOES_MARCAS,
     "cargos_alvo": OPCOES_CARGOS,

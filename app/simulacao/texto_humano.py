@@ -61,32 +61,55 @@ def _maior_fatia(quebras: list[dict], nomes: dict[str, str], total: float) -> tu
 
 
 def fatos_da_simulacao(resumo: dict) -> list[str]:
-    """Os números da simulação como frases curtas em português, prontas para a LLM usar."""
+    """Os números da simulação como frases curtas em português, prontas para a LLM usar.
+
+    Na ordem do resultado (A6-72): meta, comissão, retorno e, só se informado, orçamento.
+    """
     totais = resumo["totais"]
     custo = totais["diferenca"]
     fatos = [
-        f"Custo extra da campanha: {formatar_reais(custo)} ({_pct(totais['diferenca_pct'])} sobre a comissão atual de {formatar_reais(totais['baseline'])}).",
-        _fato_orcamento(resumo["orcamento"]),
         _fato_meta(resumo["meta"]),
+        f"Custo extra da campanha: {formatar_reais(custo)} ({_pct(totais['diferenca_pct'])} sobre a comissão atual de {formatar_reais(totais['baseline'])}).",
+        *_fatos_retorno(resumo.get("retorno")),
+        *([_fato_orcamento(resumo["orcamento"])] if resumo.get("orcamento") else []),
         *_fatos_impacto(resumo.get("impacto"), resumo.get("maiores_lojas", []), custo),
+        *_fatos_quebras(resumo, custo),
     ]
+    return fatos + [_fato_cenario(cenario) for cenario in resumo.get("cenarios", [])]
+
+
+def _fatos_quebras(resumo: dict, custo: float) -> list[str]:
     marca = _maior_fatia(resumo["por_marca"], NOMES_MARCA, custo)
     cargo = _maior_fatia(resumo["por_cargo"], NOMES_CARGO, custo)
-    if marca:
-        fatos.append(f"Maior parte do custo extra: marca {marca[0]} ({marca[1]} do total).")
+    fatos = [f"Maior parte do custo extra: marca {marca[0]} ({marca[1]} do total)."] if marca else []
     if cargo:
         fatos.append(f"Cargo que mais recebe o acréscimo: {cargo[0]} ({cargo[1]} do total).")
-    return fatos + [_fato_cenario(cenario) for cenario in resumo.get("cenarios", [])]
+    return fatos
 
 
 def _fato_meta(meta: dict) -> str:
     """Histórico, não previsão: evita "meta batida" e "superou em 120%" (é 120% DA meta)."""
     pct = meta["pct_atingimento"]
     comparacao = f"{_pct(pct - 100)} acima da meta" if pct >= 100 else f"{_pct(100 - pct)} abaixo da meta"
+    diferenca = meta.get("diferenca", meta["vendas_periodo"] - meta["meta_vendas"])
+    lado = "acima" if diferenca >= 0 else "abaixo"
     return (
         f"No histórico, as vendas desse período somaram {formatar_reais(meta['vendas_periodo'])}, "
-        f"{_pct(pct)} da meta de {formatar_reais(meta['meta_vendas'])} ({comparacao})."
+        f"{_pct(pct)} da meta de {formatar_reais(meta['meta_vendas'])} ({comparacao}). "
+        f"São {formatar_reais(abs(diferenca))} {lado} da meta."
     )
+
+
+def _fatos_retorno(retorno: dict | None) -> list[str]:
+    """Conta provisória do A6-72. Ex.: "Retorno (conta provisória): o custo extra é 0,99% da venda do período…" """
+    if not retorno or retorno["custo_pct_venda"] is None:
+        return []
+    pct = f"{retorno['custo_pct_venda']:.2f}%".replace(".", ",")
+    texto = f"Retorno (conta provisória): o custo extra é {pct} da venda do período"
+    por_real = retorno["custo_por_real_acima_meta"]
+    if por_real is not None:
+        texto += f", ou {formatar_reais(por_real)} para cada R$ 1 vendido acima da meta"
+    return [texto + "."]
 
 
 def _fatos_impacto(impacto: dict | None, lojas: list[dict], custo: float) -> list[str]:
@@ -103,12 +126,13 @@ def _fatos_impacto(impacto: dict | None, lojas: list[dict], custo: float) -> lis
 
 
 def _fato_cenario(cenario: dict) -> str:
-    situacao = "cabe no orçamento" if cenario["cabe_no_orcamento"] else "ainda não cabe no orçamento"
     pct = f"{cenario['pct_acrescimo']:.2f}".replace(".", ",")
-    return (
-        f"Cenário calculado '{cenario['titulo']}': acréscimo de {pct}%, custo extra "
-        f"{formatar_reais(cenario['custo_incremental'])}, {situacao}."
-    )
+    texto = f"Cenário calculado '{cenario['titulo']}': acréscimo de {pct}%, custo extra {formatar_reais(cenario['custo_incremental'])}"
+    # Sem orçamento na ficha, o cenário não diz se cabe (A6-72).
+    if cenario["cabe_no_orcamento"] is None:
+        return texto + "."
+    situacao = "cabe no orçamento" if cenario["cabe_no_orcamento"] else "ainda não cabe no orçamento"
+    return f"{texto}, {situacao}."
 
 
 def _fato_orcamento(orcamento: dict) -> str:
