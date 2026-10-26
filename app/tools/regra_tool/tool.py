@@ -16,6 +16,7 @@ NOME_TOOL_REGRA = "registrar_parametros_regra"
 @tool(NOME_TOOL_REGRA, response_format="content_and_artifact")
 def registrar_parametros_regra(
     comando_original: str,
+    explicacao: str,
     data_inicio: str | None = None,
     data_fim: str | None = None,
     pct_acrescimo: float | None = None,
@@ -34,6 +35,8 @@ def registrar_parametros_regra(
 
     Args:
         comando_original: A frase do usuário que descreve a regra.
+        explicacao: Frase curta para o usuário, começando com verbo no gerúndio, do que você está
+            registrando (ex.: "Registrando a campanha de +1% para todas as marcas de 24 a 30/11").
         data_inicio: Início da vigência em YYYY-MM-DD. Os dados disponíveis são de 2025.
         data_fim: Fim da vigência em YYYY-MM-DD.
         pct_acrescimo: Acréscimo em pontos percentuais sobre a comissão (+1% -> 1.0).

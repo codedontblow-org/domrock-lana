@@ -5,20 +5,20 @@ from dataclasses import dataclass, replace
 
 import pandas as pd
 
+from app.core.config import get_settings
 from app.simulacao.assercoes import AssercaoViolada, conferir_contra_referencia, conferir_resultado
 from app.simulacao.bases import BasesSimulacao, FonteBases, competencias_do_periodo
 from app.simulacao.vigencia import (
     CampanhaContexto, calcular_baseline_vigente, calcular_periodos, detectar_conflitos, fontes_da_vigente,
 )
 from app.simulacao.cenarios import SimularCusto, propor_cenarios
-from app.simulacao.dtos import (
-    PassoSimulacao, ResultadoSimulacao, TotaisSimulacao, TrilhaSimulacao, VereditoOrcamento,
-)
+from app.simulacao.dtos import ResultadoSimulacao
 from app.simulacao.especificacao import CatalogoEspecificacao
 from app.simulacao.explicacao import Explicador
 from app.simulacao.resumo import (
-    RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, gerar_premissas, maiores_lojas, medir_impacto, quebrar_por,
+    RESSALVAS, avaliar_meta, avaliar_orcamento, calcular_totais, maiores_lojas, medir_impacto, quebrar_por,
 )
+from app.simulacao.trilha import Cronometro, ExecucaoSimulada, montar_trilha_simulacao
 from app.tools.code_tool.dtos import CodigoGerado, ContextoGeracao
 from app.tools.code_tool.gerador import GeradorCodigo, GeradorCodigoModelo
 from app.tools.code_tool.runner import CodeRunner
@@ -78,19 +78,28 @@ class SimuladorCampanha:
     def simular(self, regra: RegraCampanha, campanhas: list[CampanhaContexto] | None = None) -> ResultadoSimulacao:
         parametros = ler_parametros(regra)
         competencias = competencias_do_periodo(parametros.data_inicio, parametros.data_fim)
-        bases = self._carregar(competencias)
+        cronometro = Cronometro()
+        with cronometro.medir("carregar_bases"):
+            bases = self._carregar(competencias)
         fontes = self._campanhas_da_especificacao() + list(campanhas or [])
         periodos = calcular_periodos(parametros, bases.comissoes, fontes)
         conflitos = detectar_conflitos(parametros, fontes)
-        baseline = calcular_baseline_vigente(bases, fontes)
+        with cronometro.medir("comissao_atual"):
+            baseline = calcular_baseline_vigente(bases, fontes)
         contexto = ContextoGeracao(parametros, competencias, _amostras(bases, baseline))
-        conferencia = self._executar_referencia(contexto, bases, baseline)
-        aprovada = self._gerar_e_executar(contexto, bases, baseline, conferencia)
-        resultado = self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
-        return resultado.model_copy(update={
-            "comissao_periodo": periodos, "conflitos": conflitos,
-            "trilha": resultado.trilha.model_copy(update={"campanhas": fontes_da_vigente(fontes, periodos)}),
-        })
+        with cronometro.medir("conferir"):
+            conferencia = self._executar_referencia(contexto, bases, baseline)
+        aprovada = self._gerar_e_executar(contexto, bases, baseline, conferencia, cronometro)
+        with cronometro.medir("resumir"):
+            resultado = self._resumir(regra.rule_id, contexto, bases, baseline, aprovada)
+        trilha = montar_trilha_simulacao(ExecucaoSimulada(
+            parametros=parametros, competencias=competencias, bases=bases, baseline=baseline,
+            modelo=_modelo_da_ia(aprovada), tentativas=aprovada.numero,
+            conferido=CONFERIDO in aprovada.observacao, usou_referencia=USOU_REFERENCIA in aprovada.observacao,
+            linhas_executadas=len(aprovada.comparacao), totais=resultado.totais,
+            campanhas=fontes_da_vigente(fontes, periodos), tempos=cronometro.tempos,
+        ))
+        return resultado.model_copy(update={"comissao_periodo": periodos, "conflitos": conflitos, "trilha": trilha})
 
     def _campanhas_da_especificacao(self) -> list[CampanhaContexto]:
         return self._especificacao.campanhas() if self._especificacao else []
@@ -112,17 +121,20 @@ class SimuladorCampanha:
 
     def _gerar_e_executar(
         self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame,
-        conferencia: TentativaAprovada | None,
+        conferencia: TentativaAprovada | None, cronometro: Cronometro,
     ) -> TentativaAprovada:
         erro: str | None = None
         codigo: CodigoGerado | None = None
         for numero in range(1, self._max_tentativas + 1):
             try:
-                codigo = self._gerador.gerar(contexto, erro)
-                comparacao = self._executar(codigo, contexto, bases, baseline)
+                with cronometro.medir("gerar_codigo"):
+                    codigo = self._gerador.gerar(contexto, erro)
+                with cronometro.medir("executar_sandbox"):
+                    comparacao = self._executar(codigo, contexto, bases, baseline)
                 if conferencia is None:
                     return TentativaAprovada(codigo, comparacao, numero)
-                conferir_contra_referencia(comparacao, conferencia.comparacao)
+                with cronometro.medir("conferir"):
+                    conferir_contra_referencia(comparacao, conferencia.comparacao)
                 return TentativaAprovada(codigo, comparacao, numero, CONFERIDO)
             # Qualquer falha da tentativa (LLM fora/429, código inválido, retorno com tipo errado)
             # vira nova tentativa e, no fim, um 422 com a causa, nunca um 500 genérico.
@@ -149,7 +161,6 @@ class SimuladorCampanha:
         orcamento = avaliar_orcamento(totais, parametros.orcamento_limite)
         por_marca = quebrar_por(comparacao, "cod_marca")
         meta = avaliar_meta(bases.vendas, parametros)
-        trilha = self._montar_trilha(contexto, bases, baseline, aprovada, totais, orcamento, meta.atingida)
         resultado = ResultadoSimulacao(
             rule_id=rule_id, competencias=contexto.competencias, totais=totais,
             por_marca=por_marca, por_cargo=quebrar_por(comparacao, "cod_cargo"),
@@ -158,101 +169,9 @@ class SimuladorCampanha:
             cenarios=propor_cenarios(parametros, orcamento, por_marca, self._custo_com(contexto, bases, baseline)),
             ressalvas=RESSALVAS, codigo=aprovada.codigo.fonte, origem_codigo=aprovada.codigo.origem,
             tentativas=aprovada.numero, explicacao="", observacao=aprovada.observacao,
-            trilha=trilha,
         )
         resumo = resultado.model_dump(include=CAMPOS_EXPLICACAO)
         return resultado.model_copy(update={"explicacao": self._explicador.explicar(resumo)})
-
-    def _montar_trilha(
-        self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame,
-        aprovada: TentativaAprovada, totais: TotaisSimulacao, orcamento: VereditoOrcamento,
-        meta_atingida: bool,
-    ) -> TrilhaSimulacao:
-        from app.core.config import get_settings
-        modelo_nome = get_settings().AI_MODEL if aprovada.codigo.origem in ("llm", "fake") else aprovada.codigo.origem
-
-        conferencias = [
-            "Colunas obrigatórias presentes (matricula, competencia, comissao)",
-            "Uma linha por matrícula/competência sem duplicatas",
-            "Alinhamento com matrículas do baseline",
-            "Comissões não-negativas e valores finitos",
-            "Consistência entre soma das contribuições e delta da comissão",
-            "Escopo restrito a marcas, cargos e período da campanha",
-        ]
-        if CONFERIDO in aprovada.observacao:
-            conferencias.append("Conferência linha a linha contra cálculo determinístico de referência")
-
-        validacao_ref = (
-            "conferido com o cálculo determinístico"
-            if CONFERIDO in aprovada.observacao
-            else ("substituído pela referência" if USOU_REFERENCIA in aprovada.observacao else "aprovado")
-        )
-
-        passos = [
-            PassoSimulacao(
-                passo=1,
-                nome="Carga das bases RH, vendas e comissões",
-                detalhes={
-                    "competencias": contexto.competencias,
-                    "linhas_rh": len(bases.rh),
-                    "linhas_vendas": len(bases.vendas),
-                    "linhas_comissoes": len(bases.comissoes),
-                },
-            ),
-            PassoSimulacao(
-                passo=2,
-                nome="Comissão atual",
-                detalhes={
-                    "matriculas": int(baseline["matricula"].nunique()),
-                    "total": round(float(baseline["comissao"].sum()), 2),
-                },
-            ),
-            PassoSimulacao(
-                passo=3,
-                nome="Geração do código",
-                detalhes={
-                    "modelo": modelo_nome,
-                    "tentativas": aprovada.numero,
-                    "validacao": validacao_ref,
-                    "observacao": aprovada.observacao,
-                },
-            ),
-            PassoSimulacao(
-                passo=4,
-                nome="Execução no sandbox",
-                detalhes={
-                    "status": "sucesso",
-                    "linhas": len(aprovada.comparacao),
-                    "origem_codigo": aprovada.codigo.origem,
-                },
-            ),
-            PassoSimulacao(
-                passo=5,
-                nome="Conferências que passaram",
-                detalhes={
-                    "conferencias": conferencias,
-                },
-            ),
-            PassoSimulacao(
-                passo=6,
-                nome="Resumo",
-                detalhes={
-                    "baseline": totais.baseline,
-                    "simulado": totais.simulado,
-                    "diferenca": totais.diferenca,
-                    "diferenca_pct": totais.diferenca_pct,
-                    "cabe_no_orcamento": orcamento.cabe_no_orcamento,
-                    "meta_atingida": meta_atingida,
-                },
-            ),
-        ]
-
-        return TrilhaSimulacao(
-            modelo=modelo_nome,
-            tentativas=aprovada.numero,
-            premissas=gerar_premissas(contexto.parametros),
-            passos=passos,
-        )
 
     def _custo_com(self, contexto: ContextoGeracao, bases: BasesSimulacao, baseline: pd.DataFrame) -> SimularCusto:
         """Simula de novo, com o código determinístico, a mesma regra com outros parâmetros."""
@@ -264,6 +183,14 @@ class SimuladorCampanha:
                 return None
             return calcular_totais(comparacao).diferenca
         return simular_custo
+
+
+def _modelo_da_ia(aprovada: TentativaAprovada) -> str:
+    """O modelo que escreveu o código, ou a origem do código fixo (ex.: "modelo")."""
+    # Com USOU_REFERENCIA o código aprovado é o fixo, mas quem divergiu nas tentativas foi a IA.
+    if aprovada.codigo.origem in ("llm", "fake") or USOU_REFERENCIA in aprovada.observacao:
+        return get_settings().AI_MODEL
+    return aprovada.codigo.origem
 
 
 def _amostras(bases: BasesSimulacao, baseline: pd.DataFrame) -> dict[str, str]:

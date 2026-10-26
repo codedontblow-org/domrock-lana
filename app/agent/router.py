@@ -31,6 +31,8 @@ class AgentResponse(BaseModel):
     events: list[AgentEvents] = []
     # Regra registrada neste turno (contrato de estrutura_parametros_regra), para o painel de revisão.
     regra: dict[str, Any] | None = None
+    # De onde veio cada número (contrato 2.2), montada pelo código; None quando não usou ferramenta.
+    trilha: dict[str, Any] | None = None
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 

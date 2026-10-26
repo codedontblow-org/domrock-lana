@@ -15,7 +15,7 @@ def test_consultar_banco_repassa_pergunta_e_devolve_resposta() -> None:
     
     # CORREÇÃO AQUI: Deve ser uma string apontando para o módulo onde 'executar' foi importado (tool.py)
     with patch("app.tools.query_tool.tool.executar", return_value=retorno_esperado) as mock_executar:
-        resposta = consultar_banco.invoke({"pergunta": "Quantas vendas em outubro?"})
+        resposta = consultar_banco.invoke({"pergunta": "Quantas vendas em outubro?", "explicacao": "Consultando as vendas de outubro"})
         
         mock_executar.assert_called_once()
         body_recebido = mock_executar.call_args[0][0]

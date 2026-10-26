@@ -67,13 +67,18 @@ def ler_regra(regra_json: str) -> dict[str, Any] | None:
 
 
 def montar_resposta(turno: dict[str, Any]) -> ia_service_pb2.InvokeResponse:
-    """Texto, eventos e ficha do turno. Eventos e ficha viajam como JSON, porque o .proto os leva como string.
+    """Texto, eventos, ficha e trilha do turno. Viajam como JSON, porque o .proto os leva como string.
 
-    Ex.: montar_resposta({"response": "oi", "events": [], "regra": None}).regra_json -> ""
+    Ex.: montar_resposta({"response": "oi", "events": [], "regra": None, "trilha": None}).trilha_json -> ""
     """
-    regra = turno.get("regra")
     return ia_service_pb2.InvokeResponse(
         resposta=turno["response"],
         events_json=json.dumps(turno.get("events", []), ensure_ascii=False, default=str),
-        regra_json=json.dumps(regra, ensure_ascii=False) if regra is not None else "",
+        regra_json=_json_ou_vazio(turno.get("regra")),
+        trilha_json=_json_ou_vazio(turno.get("trilha")),
     )
+
+
+def _json_ou_vazio(valor: dict[str, Any] | None) -> str:
+    # "" = não veio (contrato 3.3): turno sem ficha nova ou sem ferramenta.
+    return json.dumps(valor, ensure_ascii=False, default=str) if valor is not None else ""

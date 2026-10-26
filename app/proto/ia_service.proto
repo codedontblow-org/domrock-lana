@@ -20,4 +20,5 @@ message InvokeResponse {
   string resposta = 1;
   string events_json = 2;
   string regra_json = 3;
+  string trilha_json = 4;  // A6-70: trilha (contrato 2.2) em JSON, ou ""
 }

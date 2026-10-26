@@ -71,3 +71,15 @@ def test_sem_ficha_do_painel_o_agente_recebe_none() -> None:
 def test_ficha_invalida_mostra_o_que_chegou() -> None:
     with pytest.raises(ValueError, match=r"regra_json inválido.*\{quebrado"):
         ler_regra("{quebrado")
+
+
+def test_trilha_do_turno_vai_em_trilha_json() -> None:
+    trilha = {"modelo": "m", "tentativas": None, "premissas": [], "passos": [{"ordem": 1, "ferramenta": "consultar_banco"}]}
+
+    resposta = montar_resposta({"response": "ok", "events": [], "regra": None, "trilha": trilha})
+
+    assert json.loads(resposta.trilha_json) == trilha
+
+
+def test_turno_sem_ferramenta_devolve_trilha_json_vazio() -> None:
+    assert montar_resposta({"response": "Posso simular campanhas.", "events": [], "regra": None}).trilha_json == ""

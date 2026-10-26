@@ -148,34 +148,46 @@ def test_simular_conferido_devolve_a_divergencia_para_a_ia_e_usa_a_referencia_no
     assert resultado.origem_codigo == "modelo" and "divergiu" in resultado.observacao
 
 
-def test_simular_preenche_trilha_com_6_passos_fixos_e_premissas() -> None:
+def test_simular_monta_a_trilha_com_os_6_passos_do_contrato() -> None:
     gerador = FakeGeradorSequencial([fonte_modelo(parametros_black_friday())])
-    resultado = _simulador(gerador).simular(montar_regra(VALORES, "bf", "draft-1"))
 
-    trilha = resultado.trilha
-    assert trilha.tentativas == 1
-    assert "Gerentes (150) excluídos" in trilha.premissas
-    assert any("Simulação sobre vendas que já aconteceram" in p for p in trilha.premissas)
+    trilha = _simulador(gerador).simular(montar_regra(VALORES, "bf", "draft-1")).trilha
 
-    # 6 passos fixos na ordem
-    assert len(trilha.passos) == 6
-    p1, p2, p3, p4, p5, p6 = trilha.passos
+    assert [(p.ordem, p.ferramenta) for p in trilha.passos] == [
+        (1, "carregar_bases"), (2, "comissao_atual"), (3, "gerar_codigo"),
+        (4, "executar_sandbox"), (5, "conferir"), (6, "resumir"),
+    ]
+    assert all(p.situacao == "SUCESSO" and p.tempo_ms >= 0 for p in trilha.passos)
+    assert trilha.tentativas == 1 and "Gerentes (150) excluídos" in trilha.premissas
+    assert trilha.passos[5].descricao == "Custo adicional de R$ 13,00"
 
-    assert p1.passo == 1 and "Carga das bases" in p1.nome
-    assert "competencias" in p1.detalhes and "linhas_rh" in p1.detalhes
 
-    assert p2.passo == 2 and "Comissão atual" in p2.nome
-    assert p2.detalhes["matriculas"] > 0 and p2.detalhes["total"] > 0
+def test_trilha_conta_as_vendas_do_periodo_e_nao_do_mes_inteiro() -> None:
+    # Regressão A6-70: contava as 4 vendas de nov; na janela 24–30/11 são 2 (M1 em 25/11, M2 em 26/11).
+    gerador = FakeGeradorSequencial([fonte_modelo(parametros_black_friday())])
 
-    assert p3.passo == 3 and "Geração do código" in p3.nome
-    assert p3.detalhes["tentativas"] == 1
+    carga = _simulador(gerador).simular(montar_regra(VALORES, "bf", "draft-1")).trilha.passos[0]
 
-    assert p4.passo == 4 and "sandbox" in p4.nome.lower()
-    assert p4.detalhes["status"] == "sucesso"
+    assert carga.descricao == "Bases de nov/2025: 3 pessoas no RH, 2 vendas de 24/11 a 30/11, 8 linhas de % por marca e cargo"
+    assert "venda" in carga.tabelas_acessadas and carga.competencias == ["2025-11"]
+    assert carga.sql_executado and "FROM venda v" in carga.sql_executado
 
-    assert p5.passo == 5 and "Conferências" in p5.nome
-    assert len(p5.detalhes["conferencias"]) >= 6
 
-    assert p6.passo == 6 and "Resumo" in p6.nome
-    assert "diferenca" in p6.detalhes and "cabe_no_orcamento" in p6.detalhes
+def test_trilha_diz_quando_o_codigo_foi_conferido_com_a_referencia() -> None:
+    fonte = fonte_modelo(parametros_black_friday(cargos_alvo=["150"]))
+
+    trilha = _simulador_conferido(FakeGeradorSequencial([fonte])).simular(montar_regra(VALORES_GERENTE, "g", "d")).trilha
+
+    assert trilha.passos[2].descricao.endswith("em 1 tentativa, conferido com o cálculo de referência")
+    assert trilha.passos[4].descricao.startswith("6 conferências passaram:")
+    assert trilha.passos[4].descricao.endswith("cálculo de referência")
+
+
+def test_trilha_diz_quando_valeu_o_calculo_de_referencia() -> None:
+    gerador = FakeGeradorSequencial([GERENTE_SOBRE_PROPRIA_VENDA])
+
+    trilha = _simulador_conferido(gerador).simular(montar_regra(VALORES_GERENTE, "g", "d")).trilha
+
+    assert "divergiu do cálculo de referência em 2 tentativas" in trilha.passos[2].descricao
+    assert trilha.passos[4].descricao.startswith("5 conferências passaram:")
 

@@ -1,6 +1,7 @@
 import pandas as pd
 
-from app.simulacao.resumo import maiores_lojas, medir_impacto
+from app.simulacao.resumo import maiores_lojas, medir_impacto, vendas_do_periodo
+from tests.fakes import bases_pequenas, parametros_black_friday
 
 COMPARACAO = pd.DataFrame({
     "matricula": ["M1", "M1", "M2", "M3"],
@@ -29,3 +30,10 @@ def test_maiores_lojas_ordena_pelo_custo_extra_e_ignora_lojas_sem_efeito() -> No
     lojas = maiores_lojas(COMPARACAO, limite=5)
 
     assert [(loja.codigo, loja.diferenca) for loja in lojas] == [("1", 5.0), ("2", 1.0)]
+
+
+def test_vendas_do_periodo_ficam_entre_inicio_e_fim_nas_marcas_da_campanha() -> None:
+    # Regressão A6-70: a trilha contava todas as vendas do mês (4), não as de 24 a 30/11 (2).
+    vendas = vendas_do_periodo(bases_pequenas().vendas, parametros_black_friday())
+
+    assert list(vendas["matricula"]) == ["M1", "M2"]

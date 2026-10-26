@@ -6,9 +6,11 @@ from typing import Any
 
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 
+from app.agent.fonte_dos_valores import conferir_fonte_dos_valores
 from app.agent.graph import lana
 from app.agent.prompts import SYSTEM_RULES
-from app.core.config import extract_text
+from app.agent.trilha import montar_trilha_chat
+from app.core.config import extract_text, get_settings
 from app.tools.regra_tool.tool import NOME_TOOL_REGRA
 
 def _parse_tool_content(conteudo: Any) -> Any:
@@ -60,7 +62,7 @@ def get_events(messages: list[BaseMessage]) -> list[dict[str, Any]]:
             if hasattr(m, "tool_calls") and m.tool_calls:
                 for call in m.tool_calls:
                     call_id = call["id"]
-                    desc = last_reasoning if last_reasoning else f"Executando ação em {call['name']}."
+                    desc = call["args"].get("explicacao") or last_reasoning or f"Executando ação em {call['name']}."
                     paired_tools[call_id] = {
                         "ferramenta": call["name"],
                         "descricao_legivel": desc,
@@ -174,14 +176,19 @@ def _invocar_turno(thread_id: str, user_input: str, regra: dict[str, Any] | None
     )
 
     # Só as mensagens deste turno: o checkpointer devolve o histórico inteiro do thread.
-    messages = result["messages"][tamanho_anterior:]
+    anteriores, messages = result["messages"][:tamanho_anterior], result["messages"][tamanho_anterior:]
 
     agent_response = messages[-1]
+    regra_do_turno = extrair_regra(messages)
+    # Trilha do contrato 2.2, montada pelo código (A6-70); a tela do chat usa os `events` acima.
+    trilha = montar_trilha_chat(messages, get_settings().AI_MODEL)
+    conhecidos = [user_input, *(extract_text(m) for m in anteriores)]
 
     return {
         "chat_id": thread_id,
         # Gemini 3.x devolve content como lista de blocos (texto + assinatura), não str.
-        "response": extract_text(agent_response),
+        "response": conferir_fonte_dos_valores(extract_text(agent_response), trilha, conhecidos, [regra, regra_do_turno]),
         "events": get_events(messages),
-        "regra": extrair_regra(messages),
+        "regra": regra_do_turno,
+        "trilha": trilha,
     }

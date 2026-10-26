@@ -134,3 +134,17 @@ def test_get_events_faz_parse_de_string_com_decimal_e_aspas_simples() -> None:
     assert ev["result"]["dados"][0]["valor_total_vendas"] == 328484.74
 
 
+def test_get_events_usa_a_explicacao_da_chamada_e_nao_o_texto_da_resposta() -> None:
+    # A6-70: com o reasoning no argumento `explicacao`, ele sempre vem e não depende do texto da IA.
+    ai_msg = AIMessage(
+        content="",
+        tool_calls=[{
+            "name": "consultar_banco", "id": "call-exp",
+            "args": {"pergunta": "venda da marca 30 em out/2025", "explicacao": "Consultando as vendas da marca 30 em outubro de 2025"},
+        }],
+    )
+    tool_msg = ToolMessage(content=json.dumps({"situacao": "ok", "tempo": 10}), name="consultar_banco", tool_call_id="call-exp")
+
+    eventos = get_events([ai_msg, tool_msg])
+
+    assert eventos[0]["descricao_legivel"] == "Consultando as vendas da marca 30 em outubro de 2025"

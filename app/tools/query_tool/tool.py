@@ -3,7 +3,7 @@ from app.tools.query_tool.dtos import QueryRequestBody
 from app.tools.query_tool.service import executar
 
 @tool
-def consultar_banco(pergunta: str) -> dict:
+def consultar_banco(pergunta: str, explicacao: str) -> dict:
     """
     Consulta métricas, vendas e funcionários da empresa convertendo linguagem natural em SQL.
 
@@ -16,6 +16,9 @@ def consultar_banco(pergunta: str) -> dict:
     
     Args:
         pergunta: Pergunta clara e detalhada sobre o que deseja buscar.
+        explicacao: Frase curta para o usuário, começando com verbo no gerúndio, com os parâmetros da
+            consulta em texto corrido (ex.: "Consultando as vendas da marca 30 em outubro de 2025").
     """
+    # `explicacao` não muda a consulta: é a frase do passo na tela (get_events, A6-70).
     body = QueryRequestBody(pergunta=pergunta)
     return executar(body).model_dump(mode="json")

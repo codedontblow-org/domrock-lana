@@ -51,6 +51,12 @@ WHERE mc.date_ref = (SELECT max(date_ref) FROM marca_cargo)
 
 COLUNAS_DATA = ("data_venda", "data_admissao", "data_demissao")
 
+# As tabelas que SQL_RH, SQL_VENDAS e SQL_COMISSOES leem, para a trilha (contrato 2.2).
+TABELAS_DAS_BASES = (
+    "cargo", "funcionario", "funcionario_cargo", "funcionario_loja", "loja", "marca", "marca_cargo", "venda",
+)
+SQL_DAS_BASES = "\n".join(sql.strip() + ";" for sql in (SQL_RH, SQL_VENDAS, SQL_COMISSOES))
+
 
 @dataclass(frozen=True)
 class BasesSimulacao:

@@ -6,7 +6,7 @@ from app.tools.regra_tool.tool import NOME_TOOL_REGRA, registrar_parametros_regr
 
 
 def _chamar(args: dict[str, object]) -> ToolMessage:
-    chamada = {"name": NOME_TOOL_REGRA, "args": args, "id": "call-1", "type": "tool_call"}
+    chamada = {"name": NOME_TOOL_REGRA, "args": {"explicacao": "Registrando a campanha", **args}, "id": "call-1", "type": "tool_call"}
     return registrar_parametros_regra.invoke(chamada)
 
 

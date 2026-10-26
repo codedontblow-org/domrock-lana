@@ -69,10 +69,18 @@ def avaliar_orcamento(totais: TotaisSimulacao, orcamento_limite: float) -> Vered
     )
 
 
-def avaliar_meta(vendas: pd.DataFrame, parametros: ParametrosSimulacao) -> AtingimentoMeta:
+def vendas_do_periodo(vendas: pd.DataFrame, parametros: ParametrosSimulacao) -> pd.DataFrame:
+    """Vendas das marcas da campanha entre o início e o fim, não do mês inteiro (A6-70: "721 vendas no período").
+
+    Ex.: len(vendas_do_periodo(bases.vendas, parametros_black_friday())) -> 721 no banco de 2025
+    """
     inicio, fim = pd.Timestamp(parametros.data_inicio), pd.Timestamp(parametros.data_fim)
     no_periodo = vendas["data_venda"].between(inicio, fim) & vendas["cod_marca"].isin(parametros.marcas_alvo)
-    realizado = round(float(vendas.loc[no_periodo, "vlr_venda"].sum()), 2)
+    return vendas.loc[no_periodo]
+
+
+def avaliar_meta(vendas: pd.DataFrame, parametros: ParametrosSimulacao) -> AtingimentoMeta:
+    realizado = round(float(vendas_do_periodo(vendas, parametros)["vlr_venda"].sum()), 2)
     pct = round(realizado / parametros.meta_vendas * 100, 2)
     return AtingimentoMeta(
         meta_vendas=parametros.meta_vendas, vendas_periodo=realizado,

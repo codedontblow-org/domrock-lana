@@ -1,6 +1,6 @@
-from typing import Any
 from pydantic import BaseModel, Field
 
+from app.core.trilha import PassoTrilha
 from app.simulacao.vigencia import CampanhaDoSistema, ComissaoPeriodo, ConflitoCampanha, HistoricoComissao
 
 from app.tools.regra_tool.dtos import RegraCampanha
@@ -73,19 +73,13 @@ class CenarioAlternativo(BaseModel):
     cabe_no_orcamento: bool
 
 
-class PassoSimulacao(BaseModel):
-    passo: int
-    nome: str
-    detalhes: dict[str, Any] = Field(default_factory=dict)
-
-
 class TrilhaSimulacao(BaseModel):
     """Trilha da simulação (2.2). Preenchido com modelo, tentativas, premissas, passos (A6-70) e campanhas (A6-74)."""
 
     modelo: str = ""
     tentativas: int = 1
     premissas: list[str] = Field(default_factory=list)
-    passos: list[PassoSimulacao] = Field(default_factory=list)
+    passos: list[PassoTrilha] = Field(default_factory=list)
     campanhas: list[HistoricoComissao] = Field(default_factory=list)
 
 

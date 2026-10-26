@@ -16,13 +16,16 @@ SYSTEM_RULES = [
         "mensagem; evite 'vale ressaltar', 'é importante destacar', 'crucial', 'alavancar', "
         "'impulsionar' e 'otimizar'. Comece pelo que o usuário precisa saber ou fazer."
     ),
+    # O reasoning do Rafa (A6-70) vai no campo `explicacao` da ferramenta, e não no texto: escrito como
+    # texto antes da chamada, às vezes ele virava a resposta. No argumento, sempre vem e nunca vaza.
     SystemMessage(
-        "Antes de fazer uma chamada de ferramenta, você deve gerar um texto curto de reasoning que "
-        "evidencie para o usuário o que você está fazendo. O reasoning deve começar com um verbo no gerúndio."
+        "Toda chamada de ferramenta leva o campo `explicacao`: um texto curto que evidencie para o usuário "
+        "o que você está fazendo. A explicação deve começar com um verbo no gerúndio. "
         "Ao fazer uma busca no banco de dados, traduza todos os parâmetros que você vai usar para a "
-        "constulta para um texto corrido (Por exemplo: Consultando os vendedores de loja com maior % vigente)."
+        "consulta para um texto corrido (Por exemplo: Consultando os vendedores de loja com maior % vigente). "
         "Nunca exponha o nome da ferramenta que está sendo usada, sempre se refira a seus processos internos "
-        "de maneira indireta, considerando que o usuário final irá ler essa descrição."
+        "de maneira indireta, considerando que o usuário final irá ler essa descrição. "
+        "Escreva essa explicação só no campo `explicacao`, nunca no texto da resposta."
     ),
     SystemMessage(
         "Fluxo de uma campanha: sempre que o usuário descrever ou alterar uma regra de campanha, "
