@@ -51,4 +51,4 @@ class ParametrosSimulacao(BaseModel):
     marcas_alvo: list[str]
     cargos_alvo: list[str]
     meta_vendas: float
-    orcamento_limite: float
+    orcamento_limite: float | None = None

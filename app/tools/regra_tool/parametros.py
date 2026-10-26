@@ -10,6 +10,7 @@ from app.tools.regra_tool.catalogo import (
     CODIGOS_CARGO,
     CODIGOS_MARCA,
     METADADOS,
+    OPCIONAIS,
     OPCOES_POR_CHAVE,
     TODAS_AS_MARCAS,
 )
@@ -28,10 +29,10 @@ def montar_regra(valores: dict[str, Any], raw_prompt: str, rule_id: str) -> Regr
     """Monta o contrato a partir dos valores extraídos.
 
     Ex.: montar_regra({"pct_acrescimo": 1.0}, "…+1%…", "draft-1").faltantes
-    -> ["periodo", "marcas_alvo", "cargos_alvo", "meta_vendas", "orcamento_limite"]
+    -> ["periodo", "marcas_alvo", "cargos_alvo", "meta_vendas"]
     """
     parametros = [_montar_parametro(key, valores.get(key)) for key in METADADOS]
-    faltantes = [p.key for p in parametros if _incompleto(p.value)]
+    faltantes = [p.key for p in parametros if p.required and _incompleto(p.value)]
     return RegraCampanha(
         rule_id=rule_id, raw_prompt=raw_prompt, parametros=parametros, faltantes=faltantes
     )
@@ -46,6 +47,7 @@ def _montar_parametro(key: str, value: Any) -> ParametroRegra:
         categoria=categoria,
         value=None if _vazio(value) else value,
         options=OPCOES_POR_CHAVE.get(key),
+        required=key not in OPCIONAIS,
     )
 
 
@@ -73,7 +75,7 @@ def ler_parametros(regra: RegraCampanha) -> ParametrosSimulacao:
         "marcas_alvo": _ler_marcas,
         "cargos_alvo": _ler_cargos,
         "meta_vendas": _ler_valor_monetario,
-        "orcamento_limite": _ler_valor_monetario,
+        "orcamento_limite": _ler_valor_opcional,
     }
     lidos: dict[str, Any] = {}
     for key, leitor in leitores.items():
@@ -131,6 +133,11 @@ def _ler_percentual(key: str, value: Any) -> float:
 
 def _ler_valor_monetario(key: str, value: Any) -> float:
     return _ler_numero_positivo(key, value)
+
+
+def _ler_valor_opcional(key: str, value: Any) -> float | None:
+    """Vazio vira None; informado, segue a mesma validação do valor obrigatório."""
+    return None if _vazio(value) else _ler_numero_positivo(key, value)
 
 
 def _ler_codigos(key: str, value: Any, permitidos: frozenset[str]) -> list[str]:

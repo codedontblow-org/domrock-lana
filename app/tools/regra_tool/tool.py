@@ -46,7 +46,8 @@ def registrar_parametros_regra(
             "150" GERENTE, "200" VENDEDOR BALCAO, "300" ASSISTENTE DE VENDAS.
             "Todos exceto gerentes" -> ["100", "200", "300"].
         meta_vendas: Meta financeira de vendas da campanha em R$.
-        orcamento_limite: Orçamento máximo do incentivo (custo extra de comissão) em R$.
+        orcamento_limite: Opcional. Orçamento máximo do incentivo (custo extra de comissão) em R$.
+            Passe só se o usuário disser; nunca pergunte por ele.
     """
     inicio = time.perf_counter()
     try:

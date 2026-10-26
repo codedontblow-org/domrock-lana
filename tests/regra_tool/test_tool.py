@@ -18,6 +18,17 @@ def test_tool_devolve_faltantes_para_a_llm_e_contrato_como_artifact() -> None:
     assert mensagem.artifact["status"] == "DRAFT_PENDING_REVIEW"
 
 
+def test_tool_pede_o_periodo_e_nao_pede_o_orcamento() -> None:
+    # Critério do A6-72: "quero +1% para todas as marcas, exceto gerentes".
+    mensagem = _chamar({
+        "comando_original": "quero +1% para todas as marcas, exceto gerentes",
+        "pct_acrescimo": 1.0, "marcas_alvo": ["ALL"], "cargos_alvo": ["100", "200", "300"],
+    })
+
+    faltantes = json.loads(mensagem.content)["faltantes"]
+    assert "periodo" in faltantes and "orcamento_limite" not in faltantes
+
+
 def test_tool_guarda_a_data_ja_informada_e_pede_a_outra() -> None:
     mensagem = _chamar({"comando_original": "a partir de 24/11", "data_inicio": "2025-11-24"})
 
