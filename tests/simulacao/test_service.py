@@ -146,3 +146,36 @@ def test_simular_conferido_devolve_a_divergencia_para_a_ia_e_usa_a_referencia_no
     assert "venda TOTAL da loja" in (gerador.erros_recebidos[1] or "")
     assert resultado.totais.diferenca == 5.0
     assert resultado.origem_codigo == "modelo" and "divergiu" in resultado.observacao
+
+
+def test_simular_preenche_trilha_com_6_passos_fixos_e_premissas() -> None:
+    gerador = FakeGeradorSequencial([fonte_modelo(parametros_black_friday())])
+    resultado = _simulador(gerador).simular(montar_regra(VALORES, "bf", "draft-1"))
+
+    trilha = resultado.trilha
+    assert trilha.tentativas == 1
+    assert "Gerentes (150) excluídos" in trilha.premissas
+    assert any("Simulação sobre vendas que já aconteceram" in p for p in trilha.premissas)
+
+    # 6 passos fixos na ordem
+    assert len(trilha.passos) == 6
+    p1, p2, p3, p4, p5, p6 = trilha.passos
+
+    assert p1.passo == 1 and "Carga das bases" in p1.nome
+    assert "competencias" in p1.detalhes and "linhas_rh" in p1.detalhes
+
+    assert p2.passo == 2 and "Comissão atual" in p2.nome
+    assert p2.detalhes["matriculas"] > 0 and p2.detalhes["total"] > 0
+
+    assert p3.passo == 3 and "Geração do código" in p3.nome
+    assert p3.detalhes["tentativas"] == 1
+
+    assert p4.passo == 4 and "sandbox" in p4.nome.lower()
+    assert p4.detalhes["status"] == "sucesso"
+
+    assert p5.passo == 5 and "Conferências" in p5.nome
+    assert len(p5.detalhes["conferencias"]) >= 6
+
+    assert p6.passo == 6 and "Resumo" in p6.nome
+    assert "diferenca" in p6.detalhes and "cabe_no_orcamento" in p6.detalhes
+

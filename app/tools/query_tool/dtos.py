@@ -1,12 +1,14 @@
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
+from app.tools.dtos import ToolResultBase
+
 StatusConsulta = Literal["sucesso", "recusado", "bloqueado", "erro_geracao", "erro_execucao"]
 
 class QueryRequestBody(BaseModel):
     pergunta: str = Field(min_length=3, max_length=500) 
 
-class QueryResponseBody(BaseModel):
+class QueryResponseBody(ToolResultBase):
     status: StatusConsulta
     mensagem: str
     sql_gerado: str | None = None

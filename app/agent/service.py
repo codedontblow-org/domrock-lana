@@ -1,4 +1,6 @@
+import ast
 import json
+import re
 import threading
 from typing import Any
 
@@ -9,28 +11,106 @@ from app.agent.prompts import SYSTEM_RULES
 from app.core.config import extract_text
 from app.tools.regra_tool.tool import NOME_TOOL_REGRA
 
+def _parse_tool_content(conteudo: Any) -> Any:
+    """Desserializa o retorno da ferramenta, suportando JSON e representações Python com Decimal."""
+    if not isinstance(conteudo, str):
+        return conteudo
+    try:
+        return json.loads(conteudo)
+    except Exception:
+        pass
+
+    # Trata casos onde o Python/LangChain serializou o dict como str contendo Decimal(...) e aspas simples
+    texto_limpo = re.sub(r"Decimal\((['\"]?)([0-9.-]+)\1\)", r"\2", conteudo)
+    try:
+        return json.loads(texto_limpo)
+    except Exception:
+        pass
+
+    try:
+        return ast.literal_eval(texto_limpo)
+    except Exception:
+        pass
+
+    return conteudo
+
+
 # Função de coleta de eventos da AI
 def get_events(messages: list[BaseMessage]) -> list[dict[str, Any]]:
-    events = []
+    events_list = []
+    paired_tools = {}
+    last_reasoning = ''
 
     for m in messages:
 
-        if hasattr(m, "tool_calls") and m.tool_calls:
-            for call in m.tool_calls:
-                events.append({
-                    "type": "tool_call",
-                    "tool": call["name"],
-                    "args": call["args"],
-                })
+        if m.type == 'ai':
+            ia_text = ""
+            if isinstance(m.content, str):
+                ia_text = m.content
+            elif isinstance(m.content, list):
+                # Trata casos onde o Gemini devolve conteúdo como lista de blocos
+                ia_text = " ".join([block["text"] for block in m.content if isinstance(block, dict) and "text" in block])
+
+            if ia_text and not (hasattr(m, "tool_calls") and m.tool_calls):
+                continue
+            
+            if ia_text:
+                last_reasoning = ia_text.strip()
+
+            if hasattr(m, "tool_calls") and m.tool_calls:
+                for call in m.tool_calls:
+                    call_id = call["id"]
+                    desc = last_reasoning if last_reasoning else f"Executando ação em {call['name']}."
+                    paired_tools[call_id] = {
+                        "ferramenta": call["name"],
+                        "descricao_legivel": desc,
+                        "tempo": 0,
+                        "situacao": "executando",
+                        "tabelas": None,
+                        "competencias": None,
+                        "filtros": None,
+                        "registros": None,
+                        "sql": None,
+                        "args": call["args"],
+                        "result": None,
+                        "tool": call["name"],
+                        "reasoning": desc,
+                    }
+                    events_list.append(paired_tools[call_id])
+
+                last_reasoning = ''
 
         elif m.type == "tool":
-            events.append({
-                "type": "tool_res",
-                "tool": m.name,
-                "result": str(m.content),
-            })
+            call_id = getattr(m, "tool_call_id", None)
+            if call_id in paired_tools:
+                conteudo = m.content
+                dados_resultado = _parse_tool_content(conteudo)
 
-    return events
+                paired_tools[call_id]["result"] = dados_resultado
+
+                if isinstance(dados_resultado, dict):
+                    if "tempo" in dados_resultado:
+                        try:
+                            paired_tools[call_id]["tempo"] = int(dados_resultado["tempo"])
+                        except (ValueError, TypeError):
+                            paired_tools[call_id]["tempo"] = 0
+                    elif "tempo_ms" in dados_resultado:
+                        paired_tools[call_id]["tempo"] = int(round(dados_resultado["tempo_ms"]))
+
+                    if "situacao" in dados_resultado:
+                        paired_tools[call_id]["situacao"] = str(dados_resultado["situacao"])
+                    else:
+                        paired_tools[call_id]["situacao"] = "ok"
+
+                    paired_tools[call_id]["tabelas"] = dados_resultado.get("tabelas")
+                    paired_tools[call_id]["competencias"] = dados_resultado.get("competencias")
+                    paired_tools[call_id]["filtros"] = dados_resultado.get("filtros")
+                    paired_tools[call_id]["registros"] = dados_resultado.get("registros")
+                    paired_tools[call_id]["sql"] = dados_resultado.get("sql") or dados_resultado.get("sql_gerado")
+                else:
+                    paired_tools[call_id]["situacao"] = "ok"
+
+    return events_list
 
 
 def extrair_regra(messages: list[BaseMessage]) -> dict[str, Any] | None:

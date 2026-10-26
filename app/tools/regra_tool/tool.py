@@ -1,9 +1,12 @@
 import json
+import time
 from typing import Any
 from uuid import uuid4
 
 from langchain_core.tools import tool
 
+from app.tools.dtos import calcular_tempo_ms
+from app.tools.regra_tool.dtos import RegraToolResult
 from app.tools.regra_tool.parametros import montar_regra
 
 NOME_TOOL_REGRA = "registrar_parametros_regra"
@@ -42,17 +45,45 @@ def registrar_parametros_regra(
         meta_vendas: Meta financeira de vendas da campanha em R$.
         orcamento_limite: Orçamento máximo do incentivo (custo extra de comissão) em R$.
     """
-    valores = {
-        "periodo": _periodo(data_inicio, data_fim),
-        "pct_acrescimo": pct_acrescimo,
-        "marcas_alvo": marcas_alvo,
-        "cargos_alvo": cargos_alvo,
-        "meta_vendas": meta_vendas,
-        "orcamento_limite": orcamento_limite,
-    }
-    regra = montar_regra(valores, comando_original, f"draft-{uuid4().hex[:8]}")
-    contrato = regra.model_dump(mode="json")
-    return json.dumps({"faltantes": regra.faltantes, "regra": contrato}, ensure_ascii=False), contrato
+    inicio = time.perf_counter()
+    try:
+        periodo = _periodo(data_inicio, data_fim)
+        valores = {
+            "periodo": periodo,
+            "pct_acrescimo": pct_acrescimo,
+            "marcas_alvo": marcas_alvo,
+            "cargos_alvo": cargos_alvo,
+            "meta_vendas": meta_vendas,
+            "orcamento_limite": orcamento_limite,
+        }
+        regra = montar_regra(valores, comando_original, f"draft-{uuid4().hex[:8]}")
+        contrato = regra.model_dump(mode="json")
+        comps = sorted(list({c[:7] for c in [data_inicio, data_fim] if c and len(c) >= 7}))
+        resultado = RegraToolResult(
+            situacao="ok",
+            tempo=calcular_tempo_ms(inicio),
+            competencias=comps,
+            filtros={"marcas": marcas_alvo, "cargos": cargos_alvo, "periodo": periodo},
+            tabelas=None,
+            registros=None,
+            sql=None,
+            faltantes=regra.faltantes,
+            regra=contrato,
+        )
+        return json.dumps(resultado.model_dump(mode="json"), ensure_ascii=False), contrato
+    except Exception:
+        resultado = RegraToolResult(
+            situacao="erro ao registrar parâmetros",
+            tempo=calcular_tempo_ms(inicio),
+            competencias=[],
+            filtros=None,
+            tabelas=None,
+            registros=None,
+            sql=None,
+            faltantes=[],
+            regra={},
+        )
+        return json.dumps(resultado.model_dump(mode="json"), ensure_ascii=False), {}
 
 
 def _periodo(data_inicio: str | None, data_fim: str | None) -> dict[str, str | None] | None:
