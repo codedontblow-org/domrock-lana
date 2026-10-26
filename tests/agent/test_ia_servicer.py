@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from app.agent.ia_servicer import IAServiceServicer, ler_regra, montar_resposta
+from app.agent.router import tempo_esgotado
 from app.proto import ia_service_pb2
 
 REGRA = {"rule_id": "bf-1", "parametros": [{"key": "pct_acrescimo", "value": 1.0}], "faltantes": []}
@@ -83,3 +84,30 @@ def test_trilha_do_turno_vai_em_trilha_json() -> None:
 
 def test_turno_sem_ferramenta_devolve_trilha_json_vazio() -> None:
     assert montar_resposta({"response": "Posso simular campanhas.", "events": [], "regra": None}).trilha_json == ""
+
+
+class AgenteComErro:
+    """Faz as vezes do lana_invoke quando o provedor falha (ex.: Gemini 504 ao passar do AI_TIMEOUT_S)."""
+
+    def __init__(self, erro: Exception) -> None:
+        self.erro = erro
+
+    def __call__(self, chat_id: str, mensagem: str, regra: dict[str, Any] | None) -> dict[str, Any]:
+        raise self.erro
+
+
+GEMINI_504 = RuntimeError(
+    "504 DEADLINE_EXCEEDED. {'error': {'code': 504, 'message': 'Deadline expired before operation could complete.'}}"
+)
+
+
+def test_tempo_esgotado_do_gemini_vira_deadline_exceeded_com_mensagem_para_o_usuario() -> None:
+    # Regressão 26/10: o 504 do Gemini saía como INTERNAL e o chat mostrava o erro cru do Google.
+    with pytest.raises(RuntimeError, match="DEADLINE_EXCEEDED: O provedor de IA demorou demais"):
+        invocar(AgenteComErro(GEMINI_504), ia_service_pb2.InvokeRequest(prompt="Black Friday +1%", chat_id="c1"))
+
+
+def test_tempo_esgotado_reconhece_o_504_e_os_timeouts_mas_nao_outros_erros() -> None:
+    assert tempo_esgotado(GEMINI_504)
+    assert tempo_esgotado(TimeoutError("lento"))
+    assert not tempo_esgotado(ValueError("regra_json inválido"))

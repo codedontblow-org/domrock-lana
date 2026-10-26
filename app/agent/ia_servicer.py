@@ -7,7 +7,7 @@ from typing import Any
 
 import grpc
 
-from app.agent.router import limite_de_cota, MENSAGEM_COTA
+from app.agent.router import limite_de_cota, tempo_esgotado, MENSAGEM_COTA, MENSAGEM_TEMPO
 from app.agent.service import lana_invoke
 from app.proto import ia_service_pb2, ia_service_pb2_grpc
 from app.agent.guardrails import classificar_guardrail, obter_resposta_guardrail
@@ -50,6 +50,9 @@ class IAServiceServicer(ia_service_pb2_grpc.IAServiceServicer):
             traceback.print_exc()
             if limite_de_cota(e):
                 await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, MENSAGEM_COTA)
+            # O backend já traduz DEADLINE_EXCEEDED em 504 com etapa "tempo" e esta mensagem para o front.
+            if tempo_esgotado(e):
+                await context.abort(grpc.StatusCode.DEADLINE_EXCEEDED, MENSAGEM_TEMPO)
             await context.abort(grpc.StatusCode.INTERNAL, f"Erro no agente: {e}")
 
 

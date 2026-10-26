@@ -50,7 +50,23 @@ def invoke(body: AgentRequest) -> AgentResponse | JSONResponse:
         # Cota da LLM (429) vira 503 com mensagem para o usuário, não um 500 sem explicação.
         if limite_de_cota(erro):
             return JSONResponse(status_code=503, content={"etapa": "cota_llm", "mensagem": MENSAGEM_COTA})
+        if tempo_esgotado(erro):
+            return JSONResponse(status_code=504, content={"etapa": "tempo", "mensagem": MENSAGEM_TEMPO})
         raise
+
+
+MENSAGEM_TEMPO = (
+    "O provedor de IA demorou demais para responder e a chamada foi cortada. Envie a mensagem "
+    "de novo em instantes."
+)
+
+
+def tempo_esgotado(erro: Exception) -> bool:
+    """O provedor cortou a chamada por tempo: o Gemini devolve 504 DEADLINE_EXCEEDED quando passa do AI_TIMEOUT_S.
+
+    Ex.: tempo_esgotado(RuntimeError("504 DEADLINE_EXCEEDED. Deadline expired")) -> True
+    """
+    return "DEADLINE_EXCEEDED" in str(erro) or "Timeout" in type(erro).__name__
 
 
 def limite_de_cota(erro: Exception) -> bool:
