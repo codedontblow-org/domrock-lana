@@ -53,6 +53,8 @@ class AtingimentoMeta(BaseModel):
 class RetornoCampanha(BaseModel):
     """Retorno da campanha pela conta provisória do A6-72 (ADR-004), até a Dom Rock definir "retorno".
 
+    Vai no resultado, mas a tela e a explicação só o usam na Sprint 3 (decisão do PO, 26/10).
+
     `custo_pct_venda`: custo adicional ÷ venda do período × 100; None sem venda no período.
     `custo_por_real_acima_meta`: custo adicional ÷ (venda − meta); None se a venda não passou da meta.
     """

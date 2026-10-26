@@ -106,10 +106,10 @@ SEM_ORCAMENTO = {
 }
 
 
-def test_fatos_seguem_a_ordem_meta_comissao_retorno_orcamento() -> None:
+def test_fatos_seguem_a_ordem_meta_comissao_orcamento() -> None:
     fatos = " ".join(fatos_da_simulacao(RESUMO_BF))
 
-    posicoes = [fatos.index(t) for t in ("No histórico", "Custo extra", "Retorno", "Não cabe no orçamento")]
+    posicoes = [fatos.index(t) for t in ("No histórico", "Custo extra", "Não cabe no orçamento")]
     assert posicoes == sorted(posicoes)
 
 
@@ -119,20 +119,19 @@ def test_fato_da_meta_traz_a_diferenca_em_reais() -> None:
     assert "R$ 406.125,93 acima da meta" in fatos
 
 
-def test_fato_do_retorno_e_provisorio_e_usa_os_numeros_calculados() -> None:
+def test_retorno_fica_fora_da_explicacao_ate_a_sprint_3() -> None:
+    # Decisão do PO (26/10): o retorno provisório sai da tela e do texto; o campo continua no resultado.
     fatos = " ".join(fatos_da_simulacao(RESUMO_BF))
 
-    assert "Retorno (conta provisória): o custo extra é 0,99% da venda do período" in fatos
-    assert "R$ 0,06 para cada R$ 1 vendido acima da meta" in fatos
+    assert "Retorno" not in fatos and "para cada R$ 1" not in fatos
 
 
-def test_abaixo_da_meta_o_retorno_nao_fala_de_venda_acima_dela() -> None:
+def test_fato_da_meta_abaixo_traz_a_diferenca_em_reais() -> None:
     meta = {**META_BF, "meta_vendas": 3000000.0, "pct_atingimento": 80.2, "atingida": False, "diferenca": -593874.07}
-    retorno = {"provisorio": True, "custo_pct_venda": 0.99, "custo_por_real_acima_meta": None}
 
-    fatos = " ".join(fatos_da_simulacao({**RESUMO_BF, "meta": meta, "retorno": retorno}))
+    fatos = " ".join(fatos_da_simulacao({**RESUMO_BF, "meta": meta}))
 
-    assert "R$ 593.874,07 abaixo da meta" in fatos and "para cada R$ 1" not in fatos
+    assert "R$ 593.874,07 abaixo da meta" in fatos
 
 
 def test_sem_orcamento_os_fatos_nao_citam_orcamento() -> None:

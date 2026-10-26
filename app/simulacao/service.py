@@ -27,9 +27,8 @@ from app.tools.regra_tool.dtos import ParametrosSimulacao, RegraCampanha
 from app.tools.regra_tool.parametros import ler_parametros
 
 LINHAS_AMOSTRA = 10
-CAMPOS_EXPLICACAO = {
-    "totais", "por_marca", "por_cargo", "orcamento", "meta", "retorno", "impacto", "maiores_lojas", "cenarios",
-}
+# Sem "retorno": a explicação só volta a falar dele na Sprint 3 (decisão do PO, 26/10).
+CAMPOS_EXPLICACAO = {"totais", "por_marca", "por_cargo", "orcamento", "meta", "impacto", "maiores_lojas", "cenarios"}
 
 
 class SimulacaoFalhouError(RuntimeError):

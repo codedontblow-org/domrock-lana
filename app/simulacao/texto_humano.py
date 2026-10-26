@@ -63,14 +63,14 @@ def _maior_fatia(quebras: list[dict], nomes: dict[str, str], total: float) -> tu
 def fatos_da_simulacao(resumo: dict) -> list[str]:
     """Os números da simulação como frases curtas em português, prontas para a LLM usar.
 
-    Na ordem do resultado (A6-72): meta, comissão, retorno e, só se informado, orçamento.
+    Na ordem do resultado (A6-72): meta, comissão e, só se informado, orçamento. O retorno
+    provisório fica fora até a Sprint 3 (decisão do PO, 26/10).
     """
     totais = resumo["totais"]
     custo = totais["diferenca"]
     fatos = [
         _fato_meta(resumo["meta"]),
         f"Custo extra da campanha: {formatar_reais(custo)} ({_pct(totais['diferenca_pct'])} sobre a comissão atual de {formatar_reais(totais['baseline'])}).",
-        *_fatos_retorno(resumo.get("retorno")),
         *([_fato_orcamento(resumo["orcamento"])] if resumo.get("orcamento") else []),
         *_fatos_impacto(resumo.get("impacto"), resumo.get("maiores_lojas", []), custo),
         *_fatos_quebras(resumo, custo),
@@ -98,18 +98,6 @@ def _fato_meta(meta: dict) -> str:
         f"{_pct(pct)} da meta de {formatar_reais(meta['meta_vendas'])} ({comparacao}). "
         f"São {formatar_reais(abs(diferenca))} {lado} da meta."
     )
-
-
-def _fatos_retorno(retorno: dict | None) -> list[str]:
-    """Conta provisória do A6-72. Ex.: "Retorno (conta provisória): o custo extra é 0,99% da venda do período…" """
-    if not retorno or retorno["custo_pct_venda"] is None:
-        return []
-    pct = f"{retorno['custo_pct_venda']:.2f}%".replace(".", ",")
-    texto = f"Retorno (conta provisória): o custo extra é {pct} da venda do período"
-    por_real = retorno["custo_por_real_acima_meta"]
-    if por_real is not None:
-        texto += f", ou {formatar_reais(por_real)} para cada R$ 1 vendido acima da meta"
-    return [texto + "."]
 
 
 def _fatos_impacto(impacto: dict | None, lojas: list[dict], custo: float) -> list[str]:
