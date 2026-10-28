@@ -1,6 +1,5 @@
 import asyncio
 import json
-import time
 import traceback
 from collections.abc import Callable
 from typing import Any
@@ -14,6 +13,7 @@ from app.agent.guardrails import classificar_guardrail, obter_resposta_guardrail
 
 # Mesma assinatura de lana_invoke: (chat_id, mensagem, ficha do painel) -> turno do agente.
 InvocarAgente = Callable[[str, str, dict[str, Any] | None], dict[str, Any]]
+PAPEIS_VALIDOS = {"usuario", "lana", "sistema"}
 
 
 class IAServiceServicer(ia_service_pb2_grpc.IAServiceServicer):
@@ -22,38 +22,43 @@ class IAServiceServicer(ia_service_pb2_grpc.IAServiceServicer):
         self._invocar = invocar
 
     async def InvokeAgent(self, request, context):
-        print(f"Recebido | chat={request.chat_id} | prompt={request.prompt!r}", flush=True)
-        inicio = time.perf_counter()
-
-        # Guardrail de entrada (custo zero de tokens)
-        tipo = classificar_guardrail(request.prompt)
-        print(f"Guardrail: {tipo} | chat={request.chat_id}", flush=True)
-        if tipo:
-            resposta = obter_resposta_guardrail(tipo)
-            if resposta:
-                print(f"Respondido pelo guardrail em {time.perf_counter() - inicio:.3f}s", flush=True)
-                return ia_service_pb2.InvokeResponse(resposta=resposta)
-
+        resposta_guardrail = self._verificar_guardrail(request.prompt)
+        if resposta_guardrail:
+            return resposta_guardrail
         try:
-            regra = ler_regra(request.regra_json)
-            resultado = await asyncio.wait_for(
-                asyncio.to_thread(self._invocar, request.chat_id, request.prompt, regra),
-                timeout=100,
-            )
-            print(f"Respondido em {time.perf_counter() - inicio:.1f}s", flush=True)
-            return montar_resposta(resultado)
-
+            return await self._executar_agente(request)
         except asyncio.TimeoutError:
-            print(f"Lana passou de 100s (chat={request.chat_id})", flush=True)
             await context.abort(grpc.StatusCode.DEADLINE_EXCEEDED, "A Lana demorou demais para responder.")
         except Exception as e:
-            traceback.print_exc()
-            if limite_de_cota(e):
-                await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, MENSAGEM_COTA)
-            # O backend já traduz DEADLINE_EXCEEDED em 504 com etapa "tempo" e esta mensagem para o front.
-            if tempo_esgotado(e):
-                await context.abort(grpc.StatusCode.DEADLINE_EXCEEDED, MENSAGEM_TEMPO)
-            await context.abort(grpc.StatusCode.INTERNAL, f"Erro no agente: {e}")
+            await self._tratar_erro(e, context)
+
+    def _verificar_guardrail(self, prompt: str) -> ia_service_pb2.InvokeResponse | None:
+        tipo = classificar_guardrail(prompt)
+        if not tipo:
+            return None
+        resposta = obter_resposta_guardrail(tipo)
+        return ia_service_pb2.InvokeResponse(resposta=resposta) if resposta else None
+
+    async def _executar_agente(self, request) -> ia_service_pb2.InvokeResponse:
+        regra = ler_regra(request.regra_json)
+        historico = ler_historico(getattr(request, "historico_json", ""))
+
+        def _chamar():
+            try:
+                return self._invocar(request.chat_id, request.prompt, regra, historico)
+            except TypeError:
+                return self._invocar(request.chat_id, request.prompt, regra)
+
+        resultado = await asyncio.wait_for(asyncio.to_thread(_chamar), timeout=100)
+        return montar_resposta(resultado)
+
+    async def _tratar_erro(self, e: Exception, context) -> None:
+        traceback.print_exc()
+        if limite_de_cota(e):
+            await context.abort(grpc.StatusCode.RESOURCE_EXHAUSTED, MENSAGEM_COTA)
+        if tempo_esgotado(e):
+            await context.abort(grpc.StatusCode.DEADLINE_EXCEEDED, MENSAGEM_TEMPO)
+        await context.abort(grpc.StatusCode.INTERNAL, f"Erro no agente: {e}")
 
 
 def ler_regra(regra_json: str) -> dict[str, Any] | None:
@@ -67,6 +72,36 @@ def ler_regra(regra_json: str) -> dict[str, Any] | None:
         return json.loads(regra_json)
     except json.JSONDecodeError as erro:
         raise ValueError(f"regra_json inválido, esperado o objeto JSON da ficha: {regra_json[:200]!r}") from erro
+
+
+def validar_item_historico(item: Any) -> dict[str, Any]:
+    if not isinstance(item, dict):
+        raise ValueError(
+            f"item do histórico inválido, esperado objeto com papel e texto; recebido {type(item).__name__}: {item!r}"
+        )
+    papel = item.get("papel")
+    if papel not in PAPEIS_VALIDOS:
+        raise ValueError(
+            f"item do histórico com papel inválido {papel!r}, esperado 'usuario', 'lana' ou 'sistema': {item!r}"
+        )
+    return item
+
+
+def ler_historico(historico_json: str) -> list[dict[str, Any]]:
+    """Histórico de mensagens que o backend manda; vazio = sem histórico anterior."""
+    if not historico_json:
+        return []
+    try:
+        dados = json.loads(historico_json)
+    except json.JSONDecodeError as erro:
+        raise ValueError(
+            f"historico_json inválido, esperado array JSON de mensagens: {historico_json[:200]!r}"
+        ) from erro
+    if not isinstance(dados, list):
+        raise ValueError(
+            f"historico_json inválido, esperado array de mensagens; recebido {type(dados).__name__}: {historico_json[:200]!r}"
+        )
+    return [validar_item_historico(item) for item in dados]
 
 
 def montar_resposta(turno: dict[str, Any]) -> ia_service_pb2.InvokeResponse:

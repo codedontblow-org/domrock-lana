@@ -40,3 +40,33 @@ def test_le_valores_no_formato_brasileiro_e_por_extenso() -> None:
     assert valores_em_reais(texto) == {
         Decimal("2406125.93"), Decimal("2400000.00"), Decimal("50000.00"), Decimal("13.00"),
     }
+
+
+def test_valor_de_consulta_anterior_na_trilha_do_historico_passa_na_conferencia() -> None:
+    trilha_turno_3 = {
+        "passos": [
+            {
+                "ordem": 1,
+                "ferramenta": "consultar_banco",
+                "situacao": "SUCESSO",
+                "dados": [{"total": 333666.01, "qtd_vendas": 188}],
+            }
+        ]
+    }
+    resposta = "Como vimos na consulta anterior, a marca 30 vendeu R$ 333.666,01."
+    assert conferir_fonte_dos_valores(resposta, None, ["qual foi o valor mesmo?"], [], trilhas_historico=[trilha_turno_3]) == resposta
+
+
+def test_valor_em_reais_nao_presente_na_trilha_do_historico_e_recusado() -> None:
+    trilha_turno_3 = {
+        "passos": [
+            {
+                "ordem": 1,
+                "ferramenta": "consultar_banco",
+                "situacao": "SUCESSO",
+                "dados": [{"total": 1000.00}],
+            }
+        ]
+    }
+    resposta = "A marca 30 vendeu R$ 333.666,01."
+    assert conferir_fonte_dos_valores(resposta, None, ["qual foi o valor?"], [], trilhas_historico=[trilha_turno_3]) == RESPOSTA_SEM_FONTE

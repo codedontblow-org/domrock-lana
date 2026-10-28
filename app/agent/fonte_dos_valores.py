@@ -26,14 +26,21 @@ CENTAVO = Decimal("0.01")
 
 
 def conferir_fonte_dos_valores(
-    resposta: str, trilha: dict[str, Any] | None, textos_conhecidos: list[str],
+    resposta: str,
+    trilha: dict[str, Any] | None,
+    textos_conhecidos: list[str],
     fichas: list[dict[str, Any] | None],
+    trilhas_historico: list[dict[str, Any] | None] | None = None,
 ) -> str:
     """A resposta como veio, ou RESPOSTA_SEM_FONTE quando cita reais sem fonte."""
     valores = valores_em_reais(resposta)
     if not valores or _consultou_com_sucesso(trilha):
         return resposta
-    conhecidos = set().union(*(valores_em_reais(texto) for texto in textos_conhecidos), _valores_das_fichas(fichas))
+    conhecidos = set().union(
+        *(valores_em_reais(texto) for texto in textos_conhecidos),
+        _valores_das_fichas(fichas),
+        _valores_das_trilhas(trilhas_historico or []),
+    )
     return resposta if valores <= conhecidos else RESPOSTA_SEM_FONTE
 
 
@@ -65,7 +72,9 @@ def _multiplicador(escala: str) -> int:
 
 
 def _consultou_com_sucesso(trilha: dict[str, Any] | None) -> bool:
-    passos = (trilha or {}).get("passos") or []
+    if not trilha:
+        return False
+    passos = trilha.get("passos") or []
     return any(p["ferramenta"] == NOME_TOOL_CONSULTA and p["situacao"] == "SUCESSO" for p in passos)
 
 
@@ -77,3 +86,44 @@ def _valores_das_fichas(fichas: list[dict[str, Any] | None]) -> set[Decimal]:
             if isinstance(valor, (int, float)) and not isinstance(valor, bool):
                 valores.add(Decimal(str(valor)).quantize(CENTAVO))
     return valores
+
+
+def _valores_das_trilhas(trilhas: list[dict[str, Any] | None]) -> set[Decimal]:
+    valores = set()
+    for trilha in trilhas:
+        if not trilha or not isinstance(trilha, dict):
+            continue
+        for passo in trilha.get("passos") or []:
+            if not isinstance(passo, dict):
+                continue
+            dados = passo.get("dados")
+            if dados is not None:
+                valores.update(_extrair_decimais(dados))
+    return valores
+
+
+def _extrair_decimais_escalar(obj: Any) -> set[Decimal]:
+    if isinstance(obj, (int, float)) and not isinstance(obj, bool):
+        try:
+            return {Decimal(str(obj)).quantize(CENTAVO)}
+        except InvalidOperation:
+            return set()
+    if isinstance(obj, Decimal):
+        return {obj.quantize(CENTAVO)}
+    if isinstance(obj, str):
+        valores = set(valores_em_reais(obj))
+        dec = _decimal_brasileiro(obj)
+        if dec is not None:
+            valores.add(dec.quantize(CENTAVO))
+        return valores
+    return set()
+
+
+def _extrair_decimais(obj: Any) -> set[Decimal]:
+    if isinstance(obj, (int, float, Decimal, str)):
+        return _extrair_decimais_escalar(obj)
+    if isinstance(obj, dict):
+        return set().union(*(_extrair_decimais(v) for v in obj.values()), set())
+    if isinstance(obj, (list, tuple, set)):
+        return set().union(*(_extrair_decimais(item) for item in obj), set())
+    return set()

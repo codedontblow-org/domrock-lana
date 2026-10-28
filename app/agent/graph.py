@@ -3,7 +3,6 @@ from app.agent.supervisor import agent_node, keep_loop
 from app.agent.initialize import lana_tools
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.memory import InMemorySaver
 
 graph = StateGraph(AgentState)
 
@@ -23,6 +22,4 @@ graph.add_conditional_edges(
 
 graph.add_edge("tools", "agent")
 
-checkpointer = InMemorySaver()
-
-lana = graph.compile(checkpointer=checkpointer)
+lana = graph.compile()

@@ -23,6 +23,8 @@ class AgentRequest(BaseModel):
     message: str
     # Regra como está no painel (com as edições do usuário), para o agente partir dela.
     regra: dict[str, Any] | None = None
+    # Histórico de mensagens recebido do backend (A6-65).
+    historico: list[dict[str, Any]] | None = None
 
 
 class AgentResponse(BaseModel):
@@ -45,7 +47,7 @@ MENSAGEM_COTA = (
 @router.post("/invoke", response_model=AgentResponse)
 def invoke(body: AgentRequest) -> AgentResponse | JSONResponse:
     try:
-        return lana_invoke(body.chat_id, body.message, body.regra)
+        return lana_invoke(body.chat_id, body.message, body.regra, body.historico)
     except Exception as erro:
         # Cota da LLM (429) vira 503 com mensagem para o usuário, não um 500 sem explicação.
         if limite_de_cota(erro):

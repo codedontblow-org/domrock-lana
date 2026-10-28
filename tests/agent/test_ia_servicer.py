@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from app.agent.ia_servicer import IAServiceServicer, ler_regra, montar_resposta
+from app.agent.ia_servicer import IAServiceServicer, ler_historico, ler_regra, montar_resposta
 from app.agent.router import tempo_esgotado
 from app.proto import ia_service_pb2
 
@@ -56,6 +56,54 @@ def test_repassa_ao_agente_a_ficha_editada_no_painel() -> None:
     invocar(agente, ia_service_pb2.InvokeRequest(prompt="mude para 2%", chat_id="c1", regra_json=json.dumps(REGRA)))
 
     assert agente.pedidos == [("c1", "mude para 2%", REGRA)]
+
+
+def test_repassa_ao_agente_o_historico_recebido() -> None:
+    historico = [
+        {"papel": "usuario", "texto": "oi"},
+        {"papel": "lana", "texto": "ola", "trilha": {"passos": []}},
+    ]
+    pedidos = []
+
+    def mock_invocar(chat_id, mensagem, regra, hist):
+        pedidos.append((chat_id, mensagem, regra, hist))
+        return {"chat_id": chat_id, "response": "entendido", "events": [], "regra": None}
+
+    asyncio.run(IAServiceServicer(mock_invocar).InvokeAgent(
+        ia_service_pb2.InvokeRequest(
+            prompt="vamos continuar",
+            chat_id="c1",
+            historico_json=json.dumps(historico),
+        ),
+        ContextoFalso(),
+    ))
+
+    assert pedidos == [("c1", "vamos continuar", None, historico)]
+
+
+def test_ler_historico_vazio_devolve_lista_vazia() -> None:
+    assert ler_historico("") == []
+    assert ler_historico("[]") == []
+
+
+def test_ler_historico_invalido_lanca_excecao() -> None:
+    with pytest.raises(ValueError, match="historico_json inválido.*esperado array JSON"):
+        ler_historico("{invalido")
+
+
+def test_ler_historico_nao_lista_lanca_excecao() -> None:
+    with pytest.raises(ValueError, match="historico_json inválido.*esperado array de mensagens"):
+        ler_historico('{"papel": "usuario"}')
+
+
+def test_ler_historico_item_nao_dict_lanca_excecao() -> None:
+    with pytest.raises(ValueError, match="item do histórico inválido.*esperado objeto"):
+        ler_historico('["invalido"]')
+
+
+def test_ler_historico_item_papel_desconhecido_lanca_excecao() -> None:
+    with pytest.raises(ValueError, match="papel inválido 'alien'"):
+        ler_historico('[{"papel": "alien", "texto": "oi"}]')
 
 
 def test_turno_sem_ficha_nova_devolve_regra_json_vazio() -> None:
