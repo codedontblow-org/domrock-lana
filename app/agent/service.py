@@ -4,7 +4,7 @@ import re
 import threading
 from typing import Any
 
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
 from app.agent.fonte_dos_valores import conferir_fonte_dos_valores
 from app.agent.graph import lana
@@ -137,13 +137,31 @@ def contexto_do_painel(regra: dict[str, Any] | None) -> str:
     )
 
 
-def _mensagens_de_entrada(config: dict[str, Any], user_input: str, regra: dict[str, Any] | None) -> list[BaseMessage]:
-    mensagem = HumanMessage(contexto_do_painel(regra) + user_input)
-    # As regras de sistema entram só no início do thread; antes eram somadas a cada turno.
-    historico = lana.get_state(config).values.get("messages", [])
-    if historico:
-        return [mensagem]
-    return [*SYSTEM_RULES, mensagem]
+def _converter_item_historico(item: dict[str, Any] | BaseMessage) -> BaseMessage:
+    if isinstance(item, BaseMessage):
+        return item
+    papel = item.get("papel")
+    texto = item.get("texto", "")
+    if papel == "lana":
+        return AIMessage(content=texto)
+    if papel == "sistema":
+        return HumanMessage(content=f"[Mensagem do sistema, não do usuário] {texto}")
+    return HumanMessage(content=texto)
+
+
+def _converter_historico(historico: list[dict[str, Any]] | None) -> list[BaseMessage]:
+    if not historico:
+        return []
+    return [_converter_item_historico(item) for item in historico]
+
+
+def _mensagens_de_entrada(
+    user_input: str,
+    regra: dict[str, Any] | None,
+    historico_mensagens: list[BaseMessage],
+) -> list[BaseMessage]:
+    mensagem_atual = HumanMessage(content=contexto_do_painel(regra) + user_input)
+    return [*SYSTEM_RULES, *historico_mensagens, mensagem_atual]
 
 
 _travas_por_chat: dict[str, threading.Lock] = {}
@@ -151,44 +169,74 @@ _trava_do_registro = threading.Lock()
 
 
 def _trava_do_chat(thread_id: str) -> threading.Lock:
-    # Dois turnos simultâneos no mesmo thread partiriam do mesmo checkpoint e embaralhariam o histórico.
+    # Dois turnos simultâneos no mesmo thread poderiam conflitar ao invocar o agente.
     with _trava_do_registro:
         return _travas_por_chat.setdefault(thread_id, threading.Lock())
 
 
 # Função para invocar o grafo via requisição HTTP
-def lana_invoke(thread_id: str, user_input: str, regra: dict[str, Any] | None = None):
+def lana_invoke(
+    thread_id: str,
+    user_input: str,
+    regra: dict[str, Any] | None = None,
+    historico: list[dict[str, Any]] | None = None,
+):
     with _trava_do_chat(thread_id):
-        return _invocar_turno(thread_id, user_input, regra)
+        return _invocar_turno(thread_id, user_input, regra, historico)
 
 
-def _invocar_turno(thread_id: str, user_input: str, regra: dict[str, Any] | None) -> dict[str, Any]:
-    config = {
-        "configurable": {
-            "thread_id": thread_id
-        }
-    }
-    tamanho_anterior = len(lana.get_state(config).values.get("messages", []))
+def _executar_grafo(entrada: list[BaseMessage]) -> list[BaseMessage]:
+    result = lana.invoke({"messages": entrada})
+    novas = result["messages"][len(entrada):]
+    return novas if novas else [result["messages"][-1]]
 
-    result = lana.invoke(
-        {"messages": _mensagens_de_entrada(config, user_input, regra)},
-        config=config,
+
+def _conferir_resposta_do_turno(
+    agent_response: BaseMessage,
+    user_input: str,
+    regra: dict[str, Any] | None,
+    regra_do_turno: dict[str, Any] | None,
+    trilha: dict[str, Any] | None,
+    historico_mensagens: list[BaseMessage],
+    historico: list[dict[str, Any]] | None,
+) -> str:
+    textos = [user_input, *(extract_text(m) for m in historico_mensagens)]
+    trilhas_hist = [item.get("trilha") for item in (historico or []) if isinstance(item, dict) and item.get("trilha")]
+    fichas_hist = [item.get("regra") for item in (historico or []) if isinstance(item, dict) and item.get("regra")]
+    fichas = [regra, regra_do_turno, *fichas_hist]
+    return conferir_fonte_dos_valores(
+        extract_text(agent_response), trilha, textos, fichas, trilhas_historico=trilhas_hist
     )
 
-    # Só as mensagens deste turno: o checkpointer devolve o histórico inteiro do thread.
-    anteriores, messages = result["messages"][:tamanho_anterior], result["messages"][tamanho_anterior:]
 
-    agent_response = messages[-1]
+def _montar_resultado_turno(
+    thread_id: str, messages: list[BaseMessage], user_input: str,
+    regra: dict[str, Any] | None, historico_mensagens: list[BaseMessage],
+    historico: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
     regra_do_turno = extrair_regra(messages)
-    # Trilha do contrato 2.2, montada pelo código (A6-70); a tela do chat usa os `events` acima.
     trilha = montar_trilha_chat(messages, get_settings().AI_MODEL)
-    conhecidos = [user_input, *(extract_text(m) for m in anteriores)]
-
+    resposta = _conferir_resposta_do_turno(
+        messages[-1], user_input, regra, regra_do_turno, trilha, historico_mensagens, historico
+    )
     return {
         "chat_id": thread_id,
-        # Gemini 3.x devolve content como lista de blocos (texto + assinatura), não str.
-        "response": conferir_fonte_dos_valores(extract_text(agent_response), trilha, conhecidos, [regra, regra_do_turno]),
+        "response": resposta,
         "events": get_events(messages),
         "regra": regra_do_turno,
         "trilha": trilha,
     }
+
+
+def _invocar_turno(
+    thread_id: str,
+    user_input: str,
+    regra: dict[str, Any] | None,
+    historico: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    historico_mensagens = _converter_historico(historico)
+    entrada = _mensagens_de_entrada(user_input, regra, historico_mensagens)
+    messages = _executar_grafo(entrada)
+    return _montar_resultado_turno(
+        thread_id, messages, user_input, regra, historico_mensagens, historico
+    )
